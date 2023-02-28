@@ -59,3 +59,12 @@ Indices and tables
 .. _Google style: https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings
 .. _NumPy style: https://numpydoc.readthedocs.io/en/latest/format.html
 .. _classical style: https://www.sphinx-doc.org/en/master/domains.html#info-field-lists
+
+
+Layout Transformer training
+
+```shell
+ CUDA_VISIBLE_DEVICES=0 python main.py   --train_json /home/greg/datasets/publaynet/annotations/train.json     --val_json /home/greg/datasets/publaynet/annotations/val.json  --exp publaynet --epochs 25 --batch_size 64 --load_checkpoint ./logs/publaynet/checkpoints/checkpoint.pth
+```
+
+
