@@ -146,7 +146,6 @@ class JSONLayout(Dataset):
         self.transform = Padding(self.max_length, self.vocab_size)
 
     def quantize_box(self, boxes, width, height):
-
         # range of xy is [0, large_side-1]
         # range of wh is [1, large_side]
         # bring xywh to [0, 1]
@@ -192,6 +191,22 @@ class JSONLayout(Dataset):
         # Add border around image
         img = ImageOps.expand(img, border=2)
         return img
+
+    def normalize_layout(self, layout, target_size):
+        layout = layout.reshape(-1)
+        layout = trim_tokens(layout, self.bos_token, self.eos_token, self.pad_token)
+        layout = layout[: len(layout) // 5 * 5].reshape(-1, 5)
+        box = layout[:, 1:].astype(np.float32)
+        box[:, [0, 1]] = box[:, [0, 1]] / (self.size - 1) * target_size
+        box[:, [2, 3]] = box[:, [2, 3]] / self.size * target_size
+        box[:, [2, 3]] = box[:, [0, 1]] + box[:, [2, 3]]
+
+        normalized = []
+        for i in range(len(layout)):
+            x1, y1, x2, y2 = box[i]
+            cat = layout[i][0] - self.size
+            normalized.append([cat, x1, y1, x2, y2])
+        return normalized
 
     def __getitem__(self, idx):
         # grab a chunk of (block_size + 1) tokens from the data

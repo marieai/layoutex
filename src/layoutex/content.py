@@ -8,9 +8,9 @@ from typing import Any
 class ContentType(Enum):
     PARAGRAPH = auto()
     TITLE = auto()
-    IMAGE = auto()
     COMPOSITE = auto()
     TABLE = auto()
+    FIGURE = auto()
     LIST = auto()
     LIST_ITEM = auto()
 
@@ -21,8 +21,11 @@ class Content:
     """
 
     def __init__(self):
+        self.content_type = None
         self.iterable = True
-        self._content = None
+
+        self.image = None
+        self.mask = None
 
     def set_content_type(self, content_type):
         if type(content_type) != ContentType:
@@ -122,14 +125,14 @@ class CompositeContent(Content):
         return transparent_str + "]"
 
 
-class ImageContent(Content):
+class FigureContent(Content):
     """
     Image content type
     """
 
     def __init__(self, content):
         super().__init__()
-        self.set_content_type(ContentType.IMAGE)
+        self.set_content_type(ContentType.FIGURE)
         self._content = content
 
     def validate_content(self):
