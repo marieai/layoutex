@@ -1,17 +1,101 @@
-from layoutex.content_provider import ContentProvider
+import time
+
+import numpy as np
+
+from layoutex.content_provider import ContentProvider, get_content_provider
 from layoutex.layout_provider import LayoutProvider
+
+
+from PIL import Image, ImageDraw, ImageOps
+
+from layoutex.layout_transformer.utils import gen_colors
 
 
 class DocumentGenerator(object):
     """A object that represents a document generator"""
 
     def __init__(
-        self, layout_provider: LayoutProvider, content_provider: ContentProvider
+        self,
+        layout_provider: LayoutProvider,
+        target_size: int,
+        doc_count: int,
+        solidity: float,
+        expected_components: list,
     ):
         self.layout_provider = layout_provider
-        self.content_provider = content_provider
+        self.count = 0
+        self.target_size = target_size
+        self.expected_components = expected_components
+        self.solidity = solidity
+        self.document_count = doc_count
 
-    def generate(self):
-        """Generate the document"""
+    def __iter__(self):
+        return self
 
-        pass
+    def __next__(self):
+        # time the generation of the document
+        from timeit import default_timer as timer
+
+        start = timer()
+
+        if self.count < self.document_count:
+            layouts = self.layout_provider.get_layouts(
+                target_size=self.target_size,
+                document_count=1,
+                solidity=self.solidity,
+                expected_components=self.expected_components,
+            )
+
+            layout = layouts[0]
+            width = self.target_size
+            height = self.target_size
+
+            # create empty PIL image
+            colors = gen_colors(6)
+            generated_doc = Image.new('RGB', (width, height), color=(255, 255, 255))
+            generated_mask = Image.new('RGB', (width, height), color=(255, 255, 255))
+            canvas = ImageDraw.Draw(generated_doc, 'RGBA')
+
+            for i, component in enumerate(layout):
+                provider = get_content_provider(
+                    component["content_type"], assets_dir="./assets"
+                )
+
+                # bounding box mode is relative to the whole document and not the component
+                bbox = np.array(component["bbox"]).astype(np.int32)
+                x1, y1, x2, y2 = bbox
+                bbox2 = [0, 0, x2 - x1, y2 - y1]
+                component["bbox"] = bbox2
+                # convert from relative to absolute coordinates
+
+                print(component["bbox"])
+                print(bbox2)
+
+                cat_id = component["category_id"]
+                col = colors[cat_id]
+
+                if False:
+                    canvas.rectangle(
+                        [x1, y1, x2, y2],
+                        outline=tuple(col) + (200,),
+                        fill=tuple(col) + (64,),
+                        width=2,
+                    )
+
+                image, mask = provider.get_content(
+                    component, bbox_mode="absolute", baseline_font_size=16
+                )
+
+                generated_doc.paste(image, (x1, y1))
+                generated_mask.paste(mask, (x1, y1))
+
+            generated_doc.save(f"/tmp/samples/rendered_{self.count}.png")
+            generated_mask.save(f"/tmp/samples/rendered_{self.count}_mask.png")
+
+            end = timer()
+            delta = end - start
+            print(f"Document generation took {delta} seconds")
+
+            self.count += 1
+            return layouts[0]
+        raise StopIteration

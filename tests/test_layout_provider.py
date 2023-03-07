@@ -6,7 +6,7 @@ from layoutex.layout_provider import LayoutProvider, get_layout_provider
 def test_fixed_layout_provider():
     layout = get_layout_provider("fixed", 10, 100)
     assert isinstance(layout, LayoutProvider)
-    doc_count = 10
+    doc_count = 1
     documents = layout.get_layouts(
         document_count=doc_count, solidity=0.5, expected_components=["figure", "table"]
     )

@@ -1,22 +1,17 @@
 import os
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
-import numpy as np
 import torch
-from PIL.ImageFont import ImageFont
+from PIL import Image, ImageDraw
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from layoutex.content import Content, ContentType, ParagraphContent
+from layoutex.content import Content, ContentType
 from layoutex.layout_transformer.dataset import JSONLayout
 from layoutex.layout_transformer.model import GPTConfig, GPT
-import torch
-from torch.nn import functional as F
-
-from PIL import Image, ImageDraw, ImageOps
-
-from layoutex.layout_transformer.utils import trim_tokens, gen_colors
+from layoutex.layout_transformer.utils import gen_colors
 
 
 def get_layout_provider(name: str, max_objects: int, max_length: int):
@@ -48,6 +43,7 @@ class LayoutProvider(ABC):
     @abstractmethod
     def get_layouts(
         self,
+        target_size: int,
         document_count: int,
         solidity: float = 0.5,
         expected_components: Optional[list[str]] = None,
@@ -198,6 +194,7 @@ def estimate_component_sizing(box, target_size, margin_size):
     elif ratio_h > 0.01:
         component_h = "LINE_HEIGHT"
 
+    # print(f"ratio_w: {ratio_w}, ratio_h: {ratio_h}  -> {component_w}, {component_h}")
     return component_w, component_h
 
 
@@ -218,6 +215,7 @@ class FixedLayoutProvider(LayoutProvider):
 
     def get_layouts(
         self,
+        target_size: int,
         document_count: int,
         solidity: float = 0.5,
         expected_components: Optional[list[str]] = None,
@@ -244,7 +242,6 @@ class FixedLayoutProvider(LayoutProvider):
             fixed_y = y[: min(4, len(y))]
 
             layouts = fixed_x.detach().cpu().numpy()
-            target_size = 1024
             generated_layouts = []
             layout = layouts[0]
 
@@ -268,7 +265,6 @@ class FixedLayoutProvider(LayoutProvider):
                 col = colors[cat]
                 x1, y1, x2, y2 = box
 
-                print(cat, box)
                 draw.rectangle(
                     [x1, y1, x2, y2],
                     outline=tuple(col) + (200,),
@@ -305,8 +301,18 @@ class FixedLayoutProvider(LayoutProvider):
                 else:
                     raise ValueError(f"Unknown category {cat}")
 
+                # due to how the dataset is generated, we change FIGURE to TABLE if the component is too large
+                if content_type == ContentType.FIGURE:
+                    if component_sizing[0] == "FULL_WIDTH" and component_sizing[1] in [
+                        "FULL_HEIGHT",
+                        "HALF_HEIGHT",
+                    ]:
+                        content_type = ContentType.TABLE
+                        has_table = True
+
                 info = {
-                    "content_type": content_type,
+                    "content_type": str(content_type.name).lower(),
+                    "category_id": cat,
                     "bbox": box,
                     "sizing": component_sizing,
                 }

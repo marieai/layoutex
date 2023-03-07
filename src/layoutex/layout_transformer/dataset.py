@@ -1,3 +1,5 @@
+from functools import cache
+
 import numpy as np
 import torch
 from torchvision.datasets.mnist import MNIST
@@ -144,6 +146,7 @@ class JSONLayout(Dataset):
         if self.max_length is None:
             self.max_length = max([len(x) for x in self.data]) + 2  # bos, eos tokens
         self.transform = Padding(self.max_length, self.vocab_size)
+
 
     def quantize_box(self, boxes, width, height):
         # range of xy is [0, large_side-1]
