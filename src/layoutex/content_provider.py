@@ -129,7 +129,7 @@ def draw_text_with_mask(
             mask_fill = "black"
             method = 4
 
-        print(m, method, text)
+        # print(m, method, text)
 
     if False and np.random.choice([0, 1], p=[0.9, 0.1]):
         stroke_width = np.random.randint(1, 4)
@@ -172,20 +172,6 @@ def draw_text_with_mask(
     except Exception as e:
         print(f"Error : {e}")
         return False, (0, 0)
-
-
-def create_bump_map(blocks_inverted, intensity=1):
-    for i, block in enumerate(blocks_inverted):
-        im = block.convert('L')
-        stat = ImageStat.Stat(im)
-        m = stat.mean[0]
-        r = stat.rms[0]
-        print(m, r)
-
-        block.save(f"/tmp/samples/bump-map-{i}.png")
-        # blocks_inverted[i] = ImageOps.invert(block)
-
-    return blocks_inverted
 
 
 class ContentProvider(object):
@@ -381,10 +367,6 @@ class ContentProvider(object):
             # )
             # print(f'text size : {text_size}')
 
-        print(f"Number of lines: {num_lines}")
-        print("max_tries: ", max_tries)
-        print("attempts: ", tries)
-
     def _generate_text(
         self,
         current_x,
@@ -525,7 +507,6 @@ class TextContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> tuple[Image, Image]:
         """Get content"""
-        print(f"Getting text content for {component}")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
@@ -539,11 +520,11 @@ class TextContentProvider(ContentProvider):
         sizing_x = component["sizing"][0]
         sizing_y = component["sizing"][1]
 
-        print(sizing_x, sizing_y)
         inverted = False
         if sizing_x in ["FULL_WIDTH", "HALF_WIDTH"] and sizing_y == "LINE_HEIGHT":
-            print("Inverted text")
-            inverted = True
+            # 50% chance of inverted text
+            if np.random.choice([0, 1], p=[0.5, 0.5]):
+                inverted = True
 
         self.overlay_background(
             img, mask, canvas, canvas_mask, h, w, component, inverted=inverted
@@ -583,7 +564,6 @@ class TableContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> tuple[Image, Image]:
         """Get content"""
-        print(f"Getting table content for {component}")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
@@ -864,7 +844,6 @@ class TitleContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> tuple[Image, Image]:
         """Get content"""
-        print(f"Getting text content for {component}")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )

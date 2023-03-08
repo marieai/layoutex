@@ -1,11 +1,14 @@
-import time
+import asyncio
 
 import numpy as np
+from typing_extensions import AsyncIterable
 
 from layoutex.content_provider import ContentProvider, get_content_provider
+from layoutex.document import Document
 from layoutex.layout_provider import LayoutProvider
 
-
+import asyncio
+from codetiming import Timer
 from PIL import Image, ImageDraw, ImageOps
 
 from layoutex.layout_transformer.utils import gen_colors
@@ -18,7 +21,6 @@ class DocumentGenerator(object):
         self,
         layout_provider: LayoutProvider,
         target_size: int,
-        doc_count: int,
         solidity: float,
         expected_components: list,
     ):
@@ -27,75 +29,96 @@ class DocumentGenerator(object):
         self.target_size = target_size
         self.expected_components = expected_components
         self.solidity = solidity
-        self.document_count = doc_count
 
-    def __iter__(self):
+    async def render_documents(self, count: int) -> AsyncIterable[Document]:
+        for i in range(count):
+            yield self.render(i)
+
+    def __aiter__(self):
+        self.iter_keys = iter(range(100))
         return self
 
-    def __next__(self):
-        # time the generation of the document
-        from timeit import default_timer as timer
+    async def __anext__(self):
+        try:
+            # extract the keys one at a time
+            key = next(self.iter_keys)
+        except StopIteration:
+            raise StopAsyncIteration
+        return self.render(key)
 
-        start = timer()
+    def render(self, task_id: int) -> Document:
+        retry_count = 0
 
-        if self.count < self.document_count:
-            layouts = self.layout_provider.get_layouts(
-                target_size=self.target_size,
-                document_count=1,
-                solidity=self.solidity,
-                expected_components=self.expected_components,
-            )
+        while True:
+            try:
+                """
+                Render a document
+                Args:
+                    task_id: unique id for the task
 
-            layout = layouts[0]
-            width = self.target_size
-            height = self.target_size
+                Returns: a document
 
-            # create empty PIL image
-            colors = gen_colors(6)
-            generated_doc = Image.new('RGB', (width, height), color=(255, 255, 255))
-            generated_mask = Image.new('RGB', (width, height), color=(255, 255, 255))
-            canvas = ImageDraw.Draw(generated_doc, 'RGBA')
+                """
+                from timeit import default_timer as timer
 
-            for i, component in enumerate(layout):
-                provider = get_content_provider(
-                    component["content_type"], assets_dir="./assets"
+                start = timer()
+                layouts = self.layout_provider.get_layouts(
+                    target_size=self.target_size,
+                    document_count=1,
+                    solidity=self.solidity,
+                    expected_components=self.expected_components,
                 )
-
-                # bounding box mode is relative to the whole document and not the component
-                bbox = np.array(component["bbox"]).astype(np.int32)
-                x1, y1, x2, y2 = bbox
-                bbox2 = [0, 0, x2 - x1, y2 - y1]
-                component["bbox"] = bbox2
-                # convert from relative to absolute coordinates
-
-                print(component["bbox"])
-                print(bbox2)
-
-                cat_id = component["category_id"]
-                col = colors[cat_id]
-
-                if False:
-                    canvas.rectangle(
-                        [x1, y1, x2, y2],
-                        outline=tuple(col) + (200,),
-                        fill=tuple(col) + (64,),
-                        width=2,
+                layout = layouts[0]
+                width = self.target_size
+                height = self.target_size
+                # create empty PIL image
+                colors = gen_colors(6)
+                generated_doc = Image.new("RGB", (width, height), color=(255, 255, 255))
+                generated_mask = Image.new(
+                    "RGB", (width, height), color=(255, 255, 255)
+                )
+                canvas = ImageDraw.Draw(generated_doc, "RGBA")
+                for i, component in enumerate(layout):
+                    provider = get_content_provider(
+                        component["content_type"], assets_dir="./assets"
                     )
 
-                image, mask = provider.get_content(
-                    component, bbox_mode="absolute", baseline_font_size=16
-                )
+                    # bounding box mode is relative to the whole document and not the component
+                    bbox = np.array(component["bbox"]).astype(np.int32)
+                    x1, y1, x2, y2 = bbox
+                    bbox2 = [0, 0, x2 - x1, y2 - y1]
+                    component["bbox"] = bbox2
+                    # convert from relative to absolute coordinates
+                    cat_id = component["category_id"]
 
-                generated_doc.paste(image, (x1, y1))
-                generated_mask.paste(mask, (x1, y1))
+                    if False:
+                        col = colors[cat_id]
+                        canvas.rectangle(
+                            [x1, y1, x2, y2],
+                            outline=tuple(col) + (200,),
+                            fill=tuple(col) + (64,),
+                            width=2,
+                        )
 
-            generated_doc.save(f"/tmp/samples/rendered_{self.count}.png")
-            generated_mask.save(f"/tmp/samples/rendered_{self.count}_mask.png")
+                    image, mask = provider.get_content(
+                        component, bbox_mode="absolute", baseline_font_size=16
+                    )
 
-            end = timer()
-            delta = end - start
-            print(f"Document generation took {delta} seconds")
+                    generated_doc.paste(image, (x1, y1))
+                    generated_mask.paste(mask, (x1, y1))
+                #
+                # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
+                # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
-            self.count += 1
-            return layouts[0]
-        raise StopIteration
+                end = timer()
+                delta = end - start
+                print(f"Document generation took {delta} seconds")
+                return Document(task_id, generated_doc, generated_mask, layout)
+            except Exception as e:
+                retry_count += 1
+                if retry_count > 3:
+                    print(f"Failed to generate document after {retry_count} retries")
+                    return Document(task_id, None, None, None)
+
+    async def task(self, task_id: int):
+        return self.render(task_id)

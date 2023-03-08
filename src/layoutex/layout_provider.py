@@ -2,6 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional
 
+import numpy as np
 import torch
 from PIL import Image, ImageDraw
 from torch.nn import functional as F
@@ -49,8 +50,9 @@ class LayoutProvider(ABC):
         expected_components: Optional[list[str]] = None,
     ) -> list[Content]:
         """
-        Get the layout of the document  to be generated
+        Get the layout of the document to be generated
         Args:
+            target_size: The target size of the document to be generated(in pixels)
             document_count:  The number of documents to be generated
             solidity: The solidity of the document to be generated in relation to the expected components
             expected_components: The components that are expected to be in the document
@@ -86,7 +88,7 @@ class GeneratedLayoutProvider(LayoutProvider):
         model = self.model
         dataset = self.dataset
         loader = DataLoader(
-            dataset, shuffle=True, pin_memory=True, batch_size=1, num_workers=1
+            dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
         )
 
         samples_dir = "/home/greg/dev/marieai/layoutex/src/layoutex/layout_transformer/logs/publaynet/samples"
@@ -203,6 +205,12 @@ class FixedLayoutProvider(LayoutProvider):
         super().__init__(max_objects, max_length)
         train_json = "~/datasets/publaynet/annotations/val.json"
         self.dataset = JSONLayout(os.path.expanduser(train_json))
+        # dataset = self.dataset
+        # self.loader = DataLoader(
+        #     self.dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
+        # )
+        total = len(self.dataset)
+        print(f"total samples : {total}")
 
     @property
     def name(self) -> str:
@@ -224,33 +232,51 @@ class FixedLayoutProvider(LayoutProvider):
             expected_components = ["table"]
 
         dataset = self.dataset
-        loader = DataLoader(
-            dataset, shuffle=True, pin_memory=True, batch_size=1, num_workers=1
-        )
+        # loader = self.loader
+
+        # loader = DataLoader(
+        #     dataset, shuffle=True, pin_memory=True, batch_size=1, num_workers=1
+        # )
 
         colors = gen_colors(6)  # category_colors
         samples_dir = "/tmp/samples"
         documents = []
         idx = 0
-        pbar = tqdm(enumerate(loader), total=len(loader))
+        # pbar = tqdm(enumerate(loader), total=len(loader))
+        total = len(self.dataset)
+        #
+        # loader = DataLoader(
+        #     dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
+        # )
+        #
+        # pbar = tqdm(enumerate(loader), total=len(loader))
+        # for it, (x, y) in pbar:
+        #     fixed_x = x[: min(4, len(x))]
+        #     layouts = fixed_x.detach().cpu().numpy()
+        #     layout = layouts[0]
+        #     # print(f"fixed_x: {layout}")
+        #     break
 
-        for it, (x, y) in pbar:
-            if idx >= document_count:
-                break
+        # for i in range(document_count):
+        while len(documents) < document_count:
+            (x, y) = self.dataset[np.random.randint(0, total - 1)]
+            fixed_x = x
+            fixed_y = y
+            layout = fixed_x.detach().cpu().numpy()
+            fixed_y.detach().cpu().numpy()
 
-            fixed_x = x[: min(4, len(x))]
-            fixed_y = y[: min(4, len(y))]
-
-            layouts = fixed_x.detach().cpu().numpy()
             generated_layouts = []
-            layout = layouts[0]
+            # layout = layouts[0] #only with dataloader
 
             normalized_layout = dataset.normalize_layout(
                 layout, target_size=target_size
             )
 
-            img = Image.new('RGB', (target_size, target_size), color=(255, 255, 255))
-            draw = ImageDraw.Draw(img, 'RGBA')
+            if False:
+                img = Image.new(
+                    "RGB", (target_size, target_size), color=(255, 255, 255)
+                )
+                draw = ImageDraw.Draw(img, "RGBA")
 
             has_table = False
             has_figure = False
@@ -265,12 +291,13 @@ class FixedLayoutProvider(LayoutProvider):
                 col = colors[cat]
                 x1, y1, x2, y2 = box
 
-                draw.rectangle(
-                    [x1, y1, x2, y2],
-                    outline=tuple(col) + (200,),
-                    fill=tuple(col) + (64,),
-                    width=2,
-                )
+                if False:
+                    draw.rectangle(
+                        [x1, y1, x2, y2],
+                        outline=tuple(col) + (200,),
+                        fill=tuple(col) + (64,),
+                        width=2,
+                    )
 
                 # get area of the box
                 area = (x2 - x1) * (y2 - y1)
@@ -283,7 +310,6 @@ class FixedLayoutProvider(LayoutProvider):
                 # 4  5: {'supercategory': '', 'id': 5, 'name': 'figure'}}
 
                 component_sizing = estimate_component_sizing(box, target_size, 60)
-
                 # convert category to Content Type
                 if cat == 0:
                     content_type = ContentType.PARAGRAPH
@@ -317,12 +343,13 @@ class FixedLayoutProvider(LayoutProvider):
                     "sizing": component_sizing,
                 }
 
-                draw.text(
-                    (x1, y1),
-                    f"{content_type} {component_sizing}",
-                    fill=(0, 0, 0, 255),
-                    # font=ImageFont.truetype("arial.ttf", 20),
-                )
+                if False:
+                    draw.text(
+                        (x1, y1),
+                        f"{content_type} {component_sizing}",
+                        fill=(0, 0, 0, 255),
+                        # font=ImageFont.truetype("arial.ttf", 20),
+                    )
 
                 generated_layouts.append(info)
 
@@ -338,10 +365,9 @@ class FixedLayoutProvider(LayoutProvider):
             if solid_area <= solidity:
                 continue
 
-            # for i, layout in enumerate(layouts):
-            # rendered = dataset.render(layout)
             # rendered.save(os.path.join(samples_dir, f"{idx:02d}_{0:02d}_input.png"))
-            img.save(os.path.join(samples_dir, f"{idx:02d}_{0:02d}_rescaled.png"))
+            # img.save(os.path.join(samples_dir, f"{idx:02d}_{0:02d}_rescaled.png"))
+
             idx += 1
             documents.append(generated_layouts)
 
