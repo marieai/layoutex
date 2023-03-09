@@ -131,7 +131,7 @@ def draw_text_with_mask(
 
         # print(m, method, text)
 
-    if False and np.random.choice([0, 1], p=[0.9, 0.1]):
+    if not inverted and np.random.choice([0, 1], p=[0.9, 0.1]):
         stroke_width = np.random.randint(1, 4)
         stroke_fill = "black"
         fill = "white"
@@ -153,11 +153,14 @@ def draw_text_with_mask(
 
         # filter non-black pixels
         # if we don't do this, the mask will anit-aliased and will have some non-black pixels
+        clip_mask = True
         if clip_mask:
             bitmap_image = np.array(bitmap_image)
             # bitmap_image[bitmap_image != 0] = 255
+
             bitmap_image[bitmap_image >= 75] = 255
             bitmap_image[bitmap_image < 75] = 0
+            #
             bitmap_image = Image.fromarray(bitmap_image)
 
         # bitmap_image.save(f'/tmp/samples/mask-{text}-after.png')
@@ -205,7 +208,7 @@ class ContentProvider(object):
         self,
         component: dict,
         bbox_mode: str = "absolute",
-        baseline_font_size: int = 16,
+        baseline_font_size: int = 20,
     ) -> tuple[Image, Image]:
         # Union[TableContent, FigureContent, ParagraphContent, ListContent]:
         pass
@@ -244,7 +247,7 @@ class ContentProvider(object):
 
         """
         font_path = os.path.join(self.font_path, np.random.choice(self.fonts))
-        font_size_est = baseline_font_size + np.random.randint(0, 10)
+        font_size_est = baseline_font_size + np.random.randint(0, 30)
         font_baseline = np.random.randint(0, 12)
         font = ImageFont.truetype(font_path, font_size_est)
         font_wh = font.getsize("A")

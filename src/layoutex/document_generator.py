@@ -103,24 +103,43 @@ class DocumentGenerator(object):
                         )
 
                     image, mask = provider.get_content(
-                        component, bbox_mode="absolute", baseline_font_size=16
+                        component, bbox_mode="absolute", baseline_font_size=20
                     )
 
                     generated_doc.paste(image, (x1, y1))
                     generated_mask.paste(mask, (x1, y1))
-                #
+
                 # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
                 # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 end = timer()
                 delta = end - start
                 print(f"Document generation took {delta} seconds")
+
+                # convert to cv2 and binarize the mask
+                import cv2
+
+                if True or np.random.choice([True, False], p=[0.5, 0.5]):
+                    def convert_pil_to_cv2(pil_img):
+                        open_cv_image = np.array(pil_img)
+                        # Convert RGB to BGR
+                        open_cv_image = open_cv_image[:, :, ::-1].copy()
+                        return open_cv_image
+
+                    img = convert_pil_to_cv2(generated_doc)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    img = cv2.threshold(
+                        img, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU
+                    )[1]
+                    generated_doc = Image.fromarray(img)
+
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
-                raise e
                 retry_count += 1
                 if retry_count > 3:
-                    print(f"Failed to generate document after {retry_count} retries : {e} ")
+                    print(
+                        f"Failed to generate document after {retry_count} retries : {e} "
+                    )
                     return Document(task_id, None, None, None)
 
     async def task(self, task_id: int):
