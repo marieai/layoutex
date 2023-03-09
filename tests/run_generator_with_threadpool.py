@@ -51,7 +51,7 @@ def main():
     )
 
     # get cpu count
-    num_samples = 2000
+    num_samples = 5000
     train_percentage = 0.8
     train_num = int(num_samples * train_percentage)  # training percent
 
@@ -77,14 +77,22 @@ def main():
             train_num=train_num,
         )
 
+    def batchify(iterable, n=1):
+        s = len(iterable)
+        for ndx in range(0, s, n):
+            yield iterable[ndx : min(ndx + n, s)]
+
+    batch_size = mp.cpu_count() * 4
     with Timer(text="\nTotal elapsed time: {:.3f}"):
-        with cf.ProcessPoolExecutor(max_workers=int(mp.cpu_count() * 0.75)) as executor:
-            render_futures = [
-                executor.submit(generator.render, i) for i in range(num_samples)
-            ]
-            index = 0
-            for future in render_futures:
-                future.add_done_callback(lambda x: completed(x))
+        # it is important to batchify the task to avoid memory issues
+        with cf.ProcessPoolExecutor(max_workers=batch_size) as executor:
+            # batchify the tasks and run in parallel
+            for batch in batchify(range(num_samples), batch_size):
+                print(f"Batch: {batch}")
+                futures = [executor.submit(generator.render, i) for i in batch]
+                # futures = executor.map(generator.render, batch)
+                for future in cf.as_completed(futures):
+                    completed(future)
 
             if False:
                 for future in cf.as_completed(render_futures):

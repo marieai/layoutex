@@ -1,5 +1,5 @@
 import asyncio
-
+import os
 import numpy as np
 from typing_extensions import AsyncIterable
 
@@ -23,12 +23,14 @@ class DocumentGenerator(object):
         target_size: int,
         solidity: float,
         expected_components: list,
+        assets_dir: str = "./assets",
     ):
         self.layout_provider = layout_provider
         self.count = 0
         self.target_size = target_size
         self.expected_components = expected_components
         self.solidity = solidity
+        self.assets_dir = os.path.expanduser(assets_dir)
 
     async def render_documents(self, count: int) -> AsyncIterable[Document]:
         for i in range(count):
@@ -80,7 +82,7 @@ class DocumentGenerator(object):
                 canvas = ImageDraw.Draw(generated_doc, "RGBA")
                 for i, component in enumerate(layout):
                     provider = get_content_provider(
-                        component["content_type"], assets_dir="./assets"
+                        component["content_type"], assets_dir=self.assets_dir
                     )
 
                     # bounding box mode is relative to the whole document and not the component
@@ -115,9 +117,10 @@ class DocumentGenerator(object):
                 print(f"Document generation took {delta} seconds")
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
+                raise e
                 retry_count += 1
                 if retry_count > 3:
-                    print(f"Failed to generate document after {retry_count} retries")
+                    print(f"Failed to generate document after {retry_count} retries : {e} ")
                     return Document(task_id, None, None, None)
 
     async def task(self, task_id: int):

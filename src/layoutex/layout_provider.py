@@ -91,7 +91,6 @@ class GeneratedLayoutProvider(LayoutProvider):
             dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
         )
 
-        samples_dir = "/home/greg/dev/marieai/layoutex/src/layoutex/layout_transformer/logs/publaynet/samples"
         samples_dir = "/tmp/samples"
         gen_name = 0
         pbar = tqdm(enumerate(loader), total=len(loader))
@@ -205,10 +204,6 @@ class FixedLayoutProvider(LayoutProvider):
         super().__init__(max_objects, max_length)
         train_json = "~/datasets/publaynet/annotations/val.json"
         self.dataset = JSONLayout(os.path.expanduser(train_json))
-        # dataset = self.dataset
-        # self.loader = DataLoader(
-        #     self.dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
-        # )
         total = len(self.dataset)
         print(f"total samples : {total}")
 
