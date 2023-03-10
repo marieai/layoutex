@@ -109,8 +109,8 @@ class DocumentGenerator(object):
                     generated_doc.paste(image, (x1, y1))
                     generated_mask.paste(mask, (x1, y1))
                 #
-                # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
-                # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
+                generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
+                generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 end = timer()
                 delta = end - start

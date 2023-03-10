@@ -531,6 +531,9 @@ class TextContentProvider(ContentProvider):
         self.overlay_background(
             img, mask, canvas, canvas_mask, h, w, component, inverted=inverted
         )
+
+        overlay = img.copy()
+
         self.render_text(
             baseline_font_size,
             img,
@@ -548,8 +551,10 @@ class TextContentProvider(ContentProvider):
 
         # img.save("/tmp/samples/canvas.png")
         # mask.save("/tmp/samples/canvas-mask.png")
+        # clone
 
-        return img, mask
+        return img, overlay
+        # return img, mask
 
 
 class TableContentProvider(ContentProvider):
@@ -575,6 +580,7 @@ class TableContentProvider(ContentProvider):
         h = bbox[3] - bbox[1]
 
         self.overlay_background(img, mask, h, w, component)
+        overlay = img.copy()
 
         self.render_text(
             baseline_font_size,
@@ -592,7 +598,8 @@ class TableContentProvider(ContentProvider):
         # img.save("/tmp/samples/canvas.png")
         # mask.save("/tmp/samples/canvas-mask.png")
 
-        return img, mask
+        return img, overlay
+        # return img, mask
 
     def overlay_background(self, img, mask, h, w, component: dict):
         tables_dir = os.path.join(self.assets_dir, "tables")
@@ -679,6 +686,8 @@ class FigureContentProvider(ContentProvider):
         w = bbox[2] - bbox[0]
         h = bbox[3] - bbox[1]
 
+        overlay = img.copy()
+
         self.overlay_background(img, mask, canvas, canvas_mask, h, w, component)
 
         # self.render_text(
@@ -688,7 +697,8 @@ class FigureContentProvider(ContentProvider):
         # img.save("/tmp/samples/canvas.png")
         # mask.save("/tmp/samples/canvas-mask.png")
 
-        return img, mask
+        return img, overlay
+        # return img, mask
 
     def overlay_background(self, img, mask, canvas, canvas_mask, h, w, component: dict):
         def generator_barcode():
@@ -855,6 +865,9 @@ class TitleContentProvider(ContentProvider):
         h = bbox[3] - bbox[1]
 
         # self.overlay_background(img, mask, h, w, component)
+
+        overlay = img.copy()
+
         self.render_text(
             baseline_font_size,
             img,
@@ -872,7 +885,8 @@ class TitleContentProvider(ContentProvider):
         # img.save("/tmp/samples/canvas.png")
         # mask.save("/tmp/samples/canvas-mask.png")
 
-        return img, mask
+        return img, overlay
+        # return img, mask
 
 
 def get_content_provider(content_type: str, assets_dir: str) -> ContentProvider:
