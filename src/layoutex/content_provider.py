@@ -131,7 +131,7 @@ def draw_text_with_mask(
 
         # print(m, method, text)
 
-    if False and np.random.choice([0, 1], p=[0.9, 0.1]):
+    if not inverted and np.random.choice([0, 1], p=[0.9, 0.1]):
         stroke_width = np.random.randint(1, 4)
         stroke_fill = "black"
         fill = "white"
@@ -154,12 +154,13 @@ def draw_text_with_mask(
         # filter non-black pixels
         # if we don't do this, the mask will anit-aliased and will have some non-black pixels
         clip_mask = True
-
         if clip_mask:
             bitmap_image = np.array(bitmap_image)
             # bitmap_image[bitmap_image != 0] = 255
+
             bitmap_image[bitmap_image >= 75] = 255
             bitmap_image[bitmap_image < 75] = 0
+            #
             bitmap_image = Image.fromarray(bitmap_image)
 
         # bitmap_image.save(f'/tmp/samples/mask-{text}-after.png')

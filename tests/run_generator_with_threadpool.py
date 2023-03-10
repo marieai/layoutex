@@ -1,4 +1,7 @@
 import os
+from random import random
+
+import numpy as np
 
 from layoutex.document import Document
 from layoutex.document_generator import DocumentGenerator
@@ -42,17 +45,20 @@ def write_images(output_root_dir, image, mask, index, train_num):
 
 
 def main():
+    layout_sizes = [1700, 2048, 2550]
+    layout_size = 2048
+
     layout_provider = get_layout_provider("fixed", 10, 100)
     generator = DocumentGenerator(
         layout_provider=layout_provider,
-        target_size=2048,
+        target_size=layout_size,
         solidity=0.5,
         expected_components=["figure", "table"],
     )
 
     # get cpu count
-    num_samples = 500
-    train_percentage = 1  # 0.8
+    num_samples = 200
+    train_percentage = 1.0
     train_num = int(num_samples * train_percentage)  # training percent
 
     print(f"train_percentage = {train_percentage}")
