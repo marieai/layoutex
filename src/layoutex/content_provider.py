@@ -4,14 +4,15 @@ class representing a content provider
 import os
 import random
 import string
-from functools import cache
+# from functools import cache
 
 import numpy as np
 from PIL import ImageFont, ImageDraw, Image, ImageStat
 from faker import Faker
 
+from typing import List, Tuple, Any
 
-def get_images_from_dir(asset_dir) -> list[Image]:
+def get_images_from_dir(asset_dir) -> List :# -> List[Image]:
     assets = []
 
     for filename in os.listdir(asset_dir):
@@ -26,8 +27,8 @@ def get_images_from_dir(asset_dir) -> list[Image]:
     return assets
 
 
-@cache
-def get_text_dimensions(text_string, font) -> tuple[int, int]:
+#@cache
+def get_text_dimensions(text_string, font) -> Tuple[int, int]:
     # https://stackoverflow.com/a/46220683/9263761
     ascent, descent = font.getmetrics()
     bbox = font.getmask(text_string).getbbox()
@@ -209,7 +210,7 @@ class ContentProvider(object):
         component: dict,
         bbox_mode: str = "absolute",
         baseline_font_size: int = 20,
-    ) -> tuple[Image, Image]:
+    ) -> Any: #Tuple[Image, Image]:
         # Union[TableContent, FigureContent, ParagraphContent, ListContent]:
         pass
 
@@ -218,7 +219,7 @@ class ContentProvider(object):
 
     def create_image_and_mask(
         self, component: dict, bbox_mode: str = "absolute"
-    ) -> tuple[Image, Image, ImageDraw, ImageDraw]:
+    ) -> Any: #Tuple[Image, Image, ImageDraw, ImageDraw]:
         bbox = component["bbox"]
         if bbox_mode == "relative":
             bbox = self._convert_relative_bbox(bbox)
@@ -236,7 +237,7 @@ class ContentProvider(object):
 
     def measure_fonts(
         self, baseline_font_size, density
-    ) -> tuple[ImageFont, int, int, int, int]:
+    ) -> Tuple : # tuple[ImageFont, int, int, int, int]:
         """
         Measure fonts to get the baseline and height
         Args:
@@ -508,7 +509,7 @@ class TextContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> tuple[Image, Image]:
+    ) -> Tuple: # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
@@ -565,7 +566,7 @@ class TableContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> tuple[Image, Image]:
+    ) -> Tuple : # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
@@ -669,7 +670,7 @@ class FigureContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> tuple[Image, Image]:
+    ) -> Tuple : #tuple[Image, Image]:
         """Get content"""
         print(f"Getting table content for {component}")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
@@ -845,7 +846,7 @@ class TitleContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> tuple[Image, Image]:
+    ) -> Tuple : # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
