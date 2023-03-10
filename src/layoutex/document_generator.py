@@ -108,6 +108,8 @@ class DocumentGenerator(object):
 
                     generated_doc.paste(image, (x1, y1))
                     generated_mask.paste(mask, (x1, y1))
+                generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
+                generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
                 # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
@@ -120,6 +122,7 @@ class DocumentGenerator(object):
                 import cv2
 
                 if True or np.random.choice([True, False], p=[0.5, 0.5]):
+
                     def convert_pil_to_cv2(pil_img):
                         open_cv_image = np.array(pil_img)
                         # Convert RGB to BGR
