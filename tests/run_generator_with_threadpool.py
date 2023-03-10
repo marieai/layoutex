@@ -45,14 +45,14 @@ def main():
     layout_provider = get_layout_provider("fixed", 10, 100)
     generator = DocumentGenerator(
         layout_provider=layout_provider,
-        target_size=1024 * 1,
+        target_size=2550,
         solidity=0.5,
         expected_components=["figure", "table"],
     )
 
     # get cpu count
-    num_samples = 5000
-    train_percentage = 0.8
+    num_samples = 1000
+    train_percentage = 1  # 0.8
     train_num = int(num_samples * train_percentage)  # training percent
 
     print(f"train_percentage = {train_percentage}")

@@ -103,7 +103,7 @@ class DocumentGenerator(object):
                         )
 
                     image, mask = provider.get_content(
-                        component, bbox_mode="absolute", baseline_font_size=16
+                        component, bbox_mode="absolute", baseline_font_size=20
                     )
 
                     generated_doc.paste(image, (x1, y1))
@@ -117,10 +117,12 @@ class DocumentGenerator(object):
                 print(f"Document generation took {delta} seconds")
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
-                raise e
+                # raise e
                 retry_count += 1
                 if retry_count > 3:
-                    print(f"Failed to generate document after {retry_count} retries : {e} ")
+                    print(
+                        f"Failed to generate document after {retry_count} retries : {e} "
+                    )
                     return Document(task_id, None, None, None)
 
     async def task(self, task_id: int):
