@@ -1,5 +1,3 @@
-from functools import cache
-
 import numpy as np
 import torch
 from torchvision.datasets.mnist import MNIST

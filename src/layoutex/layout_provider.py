@@ -14,6 +14,7 @@ from layoutex.layout_transformer.dataset import JSONLayout
 from layoutex.layout_transformer.model import GPTConfig, GPT
 from layoutex.layout_transformer.utils import gen_colors
 
+from typing import List, Tuple, Any, Optional
 
 def get_layout_provider(name: str, max_objects: int, max_length: int):
     if name == "fixed":
@@ -47,8 +48,8 @@ class LayoutProvider(ABC):
         target_size: int,
         document_count: int,
         solidity: float = 0.5,
-        expected_components: Optional[list[str]] = None,
-    ) -> list[Content]:
+        expected_components: Optional = None,
+    ) -> List :#list[Content]:
         """
         Get the layout of the document to be generated
         Args:
@@ -84,7 +85,7 @@ class GeneratedLayoutProvider(LayoutProvider):
         """
         return "generated"
 
-    def get_layouts(self, document_count: int) -> list[Content]:
+    def get_layouts(self, document_count: int) -> List :#list[Content]:
         model = self.model
         dataset = self.dataset
         loader = DataLoader(
@@ -221,8 +222,8 @@ class FixedLayoutProvider(LayoutProvider):
         target_size: int,
         document_count: int,
         solidity: float = 0.5,
-        expected_components: Optional[list[str]] = None,
-    ) -> list[list[dict]]:
+        expected_components: Optional = None,
+    ) -> List : # list[list[dict]]:
         if expected_components is None:
             expected_components = ["table"]
 

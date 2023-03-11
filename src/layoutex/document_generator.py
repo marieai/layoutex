@@ -103,7 +103,7 @@ class DocumentGenerator(object):
                         )
 
                     image, mask = provider.get_content(
-                        component, bbox_mode="absolute", baseline_font_size=20
+                        component, bbox_mode="absolute", baseline_font_size=25
                     )
 
                     generated_doc.paste(image, (x1, y1))
