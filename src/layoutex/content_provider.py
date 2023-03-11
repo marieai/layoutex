@@ -4,6 +4,7 @@ class representing a content provider
 import os
 import random
 import string
+
 # from functools import cache
 
 import numpy as np
@@ -12,7 +13,8 @@ from faker import Faker
 
 from typing import List, Tuple, Any
 
-def get_images_from_dir(asset_dir) -> List :# -> List[Image]:
+
+def get_images_from_dir(asset_dir) -> List:  # -> List[Image]:
     assets = []
 
     for filename in os.listdir(asset_dir):
@@ -27,7 +29,7 @@ def get_images_from_dir(asset_dir) -> List :# -> List[Image]:
     return assets
 
 
-#@cache
+# @cache
 def get_text_dimensions(text_string, font) -> Tuple[int, int]:
     # https://stackoverflow.com/a/46220683/9263761
     ascent, descent = font.getmetrics()
@@ -93,7 +95,6 @@ def draw_text_with_mask(
         import cv2
 
         img = np.array(im1)
-        # numpy blur to remove noise
         img = cv2.GaussianBlur(img, (5, 5), 0)
         m = np.mean(img)
         del im1
@@ -103,25 +104,25 @@ def draw_text_with_mask(
             stroke_width = 0
             stroke_fill = "black"
             fill = "white"
-            mask_fill = "black"
+            mask_fill = "red"
             method = 0
         elif m < 60:  # dark background
             stroke_width = np.random.randint(2, 4)
             stroke_fill = (int(m / 3), int(m / 3), int(m / 3))  # "black"
             fill = "white"
-            mask_fill = "black"
+            mask_fill = "red"
             method = 1
         elif 60 < m < 90:  # light background
             stroke_width = 2
             stroke_fill = (int(m / 3), int(m / 3), int(m / 3))
             fill = "white"
-            mask_fill = "black"
+            mask_fill = "red"
             method = 2
         elif 90 < m < 150:  # light background
             stroke_width = 1
             stroke_fill = "white"
             fill = "black"
-            mask_fill = "black"
+            mask_fill = "red"
             method = 3
         else:  # very light background
             stroke_width = 0
@@ -210,7 +211,7 @@ class ContentProvider(object):
         component: dict,
         bbox_mode: str = "absolute",
         baseline_font_size: int = 20,
-    ) -> Any: #Tuple[Image, Image]:
+    ) -> Any:  # Tuple[Image, Image]:
         # Union[TableContent, FigureContent, ParagraphContent, ListContent]:
         pass
 
@@ -219,7 +220,7 @@ class ContentProvider(object):
 
     def create_image_and_mask(
         self, component: dict, bbox_mode: str = "absolute"
-    ) -> Any: #Tuple[Image, Image, ImageDraw, ImageDraw]:
+    ) -> Any:  # Tuple[Image, Image, ImageDraw, ImageDraw]:
         bbox = component["bbox"]
         if bbox_mode == "relative":
             bbox = self._convert_relative_bbox(bbox)
@@ -237,7 +238,7 @@ class ContentProvider(object):
 
     def measure_fonts(
         self, baseline_font_size, density
-    ) -> Tuple : # tuple[ImageFont, int, int, int, int]:
+    ) -> Tuple:  # tuple[ImageFont, int, int, int, int]:
         """
         Measure fonts to get the baseline and height
         Args:
@@ -286,7 +287,7 @@ class ContentProvider(object):
         # print(f"Number of lines: {num_lines}")
 
         estimated_colum_size = int(width / np.random.randint(5, 10))
-        estimated_start_x = 0
+        estimated_start_x = np.random.randint(0, estimated_colum_size)
         max_tries = 50
 
         if fit_font_to_bbox:
@@ -482,7 +483,7 @@ class ContentProvider(object):
 
             if sizing_y == "QUARTER_HEIGHT":
                 background = self.patches_half[
-                    np.random.randint(0, len(self.patches_half))
+                    np.random.randint(0, len(self.patches_quarter))
                 ]
             elif sizing_y == "HALF_HEIGHT":
                 background = self.patches_half[
@@ -492,6 +493,9 @@ class ContentProvider(object):
                 background = self.patches_full[
                     np.random.randint(0, len(self.patches_full))
                 ]
+
+        # x_offset = np.random.randint(w / 16, w / 16)
+        # y_offset = np.random.randint(h / 16, h / 16)
 
         background = background.resize((w, h))
         img.paste(background, (0, 0))
@@ -509,7 +513,7 @@ class TextContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> Tuple: # tuple[Image, Image]:
+    ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
@@ -571,7 +575,7 @@ class TableContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> Tuple : # tuple[Image, Image]:
+    ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
@@ -677,7 +681,7 @@ class FigureContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> Tuple : #tuple[Image, Image]:
+    ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
         print(f"Getting table content for {component}")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
@@ -839,9 +843,20 @@ class FigureContentProvider(ContentProvider):
             mask.paste(logo, logo_pos)
 
         generator = random.choice([generator_barcode, generator_qrcode, generator_logo])
-        # generator_qrcode()
-        # generator_logo()
-        generator()
+
+        # "FULL_WIDTH", "LINE_HEIGHT"
+        sizing_x = component["sizing"][0]
+        sizing_y = component["sizing"][1]
+
+        if sizing_y == "QUARTER_HEIGHT":
+            generator = random.choice(
+                [generator_barcode, generator_qrcode, generator_logo]
+            )
+            generator()
+        elif sizing_y == "HALF_HEIGHT":
+            generator_logo()
+        else:
+            generator()
 
 
 class TitleContentProvider(ContentProvider):
@@ -856,7 +871,7 @@ class TitleContentProvider(ContentProvider):
         bbox_mode: str = "absolute",
         baseline_font_size: int = 16,
         density: float = 0.8,
-    ) -> Tuple : # tuple[Image, Image]:
+    ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode

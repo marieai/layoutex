@@ -108,33 +108,32 @@ class DocumentGenerator(object):
 
                     generated_doc.paste(image, (x1, y1))
                     generated_mask.paste(mask, (x1, y1))
-                generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
-                generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
-
-                # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
-                # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 end = timer()
                 delta = end - start
                 print(f"Document generation took {delta} seconds")
 
-                # convert to cv2 and binarize the mask
+                # convert to cv2 and binarize the original image
                 import cv2
 
-                if True or np.random.choice([True, False], p=[0.5, 0.5]):
+                def convert_pil_to_cv2(pil_img):
+                    open_cv_image = np.array(pil_img)
+                    # Convert RGB to BGR
+                    open_cv_image = open_cv_image[:, :, ::-1].copy()
+                    return open_cv_image
 
-                    def convert_pil_to_cv2(pil_img):
-                        open_cv_image = np.array(pil_img)
-                        # Convert RGB to BGR
-                        open_cv_image = open_cv_image[:, :, ::-1].copy()
-                        return open_cv_image
-
-                    img = convert_pil_to_cv2(generated_doc)
+                def binarize(pil_img):
+                    img = convert_pil_to_cv2(pil_img)
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                     img = cv2.threshold(
                         img, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU
                     )[1]
-                    generated_doc = Image.fromarray(img)
+                    return Image.fromarray(img)
+
+                generated_doc = binarize(generated_doc)
+
+                generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
+                generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
