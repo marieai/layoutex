@@ -1,6 +1,7 @@
 """
 class representing a content provider
 """
+import json
 import os
 import random
 import string
@@ -51,12 +52,8 @@ def draw_text_with_mask(
     document_size,
     clip_mask=False,
     inverted=False,
+    style_attributes=None,
 ):
-    # t_len = canvas.textlength(text, font)
-    # (left, top, right, bottom) = canvas.textbbox((0, 0), text, font)
-    # word_width = right - left
-    # word_height = bottom - top
-
     word_width, word_height = get_text_dimensions(text, font)
     # print(
     #     f'word_width: {word_width}, word_height: {word_height}, text_width : {text_width} {text_height}'
@@ -80,6 +77,25 @@ def draw_text_with_mask(
     stroke_fill = "black"
     mask_fill = "black"
     fill = "black"
+
+    if style_attributes:
+        if (
+            style_attributes["style"] == "WHITE"
+            or style_attributes["style"] == "WHITE_BLACK_OUTLINE"
+        ):
+            fill = "white"
+            stroke_width = np.random.randint(1, 4)
+        elif style_attributes["style"] == "BLACK":
+            fill = "black"
+        else:
+            raise ValueError(f"Invalid style: {style_attributes['style']}")
+
+        if style_attributes["mask"] == "BLACK":
+            mask_fill = "black"
+        elif style_attributes["mask"] == "RED":
+            mask_fill = "red"
+        else:
+            raise ValueError(f"Invalid mask: {style_attributes['mask']}")
 
     if inverted:
         # based on the mean of the image, decide how to draw the inverted text
@@ -131,13 +147,12 @@ def draw_text_with_mask(
             mask_fill = "black"
             method = 4
 
-        # print(m, method, text)
-
-    if not inverted and np.random.choice([0, 1], p=[0.9, 0.1]):
-        stroke_width = np.random.randint(1, 4)
-        stroke_fill = "black"
-        fill = "white"
-        mask_fill = "red"
+    if style_attributes is None:
+        if not inverted and np.random.choice([0, 1], p=[0.9, 0.1]):
+            stroke_width = np.random.randint(1, 4)
+            stroke_fill = "black"
+            fill = "white"
+            mask_fill = "red"
 
     canvas.text(
         xy,
@@ -158,11 +173,9 @@ def draw_text_with_mask(
         clip_mask = True
         if clip_mask:
             bitmap_image = np.array(bitmap_image)
-            # bitmap_image[bitmap_image != 0] = 255
-
-            bitmap_image[bitmap_image >= 75] = 255
-            bitmap_image[bitmap_image < 75] = 0
-            #
+            bitmap_image[bitmap_image != 0] = 255
+            # bitmap_image[bitmap_image >= 75] = 255
+            # bitmap_image[bitmap_image < 75] = 0
             bitmap_image = Image.fromarray(bitmap_image)
 
         # bitmap_image.save(f'/tmp/samples/mask-{text}-after.png')
@@ -273,7 +286,11 @@ class ContentProvider(object):
         tabular=False,
         fit_font_to_bbox=False,
         inverted=False,
+        style_attributes=None,
     ):
+        # print(
+        #     f"Rendering text with font size: {baseline_font_size} and density: {density}"
+        # )
         header = False
         if fit_font_to_bbox:
             baseline_font_size = int(height * 0.8)
@@ -287,12 +304,13 @@ class ContentProvider(object):
         # print(f"Number of lines: {num_lines}")
 
         estimated_colum_size = int(width / np.random.randint(5, 10))
-        estimated_start_x = np.random.randint(0, estimated_colum_size)
+        estimated_start_x = 0  # np.random.randint(0, estimated_colum_size)
         max_tries = 50
 
-        if fit_font_to_bbox:
+        # fit_font_to_bbox = True
+        if fit_font_to_bbox or num_lines == 0:
             num_lines = 1
-        tries = 0
+            line_height = height
 
         for i in range(num_lines):
             # generate random text
@@ -355,6 +373,7 @@ class ContentProvider(object):
                     (width, height),
                     True,
                     inverted=inverted,
+                    style_attributes=style_attributes,
                 )
 
                 start_x = start_x + txt_spacing
@@ -564,10 +583,74 @@ class TextContentProvider(ContentProvider):
 
 
 class TableContentProvider(ContentProvider):
-    """A object that represents a text content provider"""
+    """
+    Table content provider that generates random tables with random content
+    """
 
     def __init__(self, assets_dir: str = None):
         super().__init__(assets_dir=assets_dir)
+        self.annotations = {}
+        self.annotations["full"] = self.load_coco_dataset(
+            os.path.join(
+                assets_dir, "annotated/table/full/annotations", "instances_default.json"
+            )
+        )
+
+    def load_coco_dataset(self, json_path):
+        with open(json_path, "r") as f:
+            data = json.loads(f.read())
+
+        images, annotations, categories = (
+            data["images"],
+            data["annotations"],
+            data["categories"],
+        )
+
+        categories = {c["id"]: c["name"] for c in categories}
+        print("Loaded {} images".format(len(images)))
+        print("Loaded {} annotations".format(len(annotations)))
+        print("Loaded {} categories".format(len(categories)))
+
+        image_annotations = {}
+        for image in images:
+            image_id = image["id"]
+
+            image["file_path"] = os.path.join(
+                self.assets_dir,
+                "annotated/table/full/images",
+                image["file_name"],
+            )
+
+            del image["license"]
+            del image["flickr_url"]
+            del image["coco_url"]
+            del image["date_captured"]
+
+            image_annotations[image_id] = []
+            for annotation in annotations:
+                if annotation["image_id"] == image_id:
+                    del annotation["segmentation"]
+                    del annotation["area"]
+                    del annotation["iscrowd"]
+
+                    # convert bbox to absolute int values
+                    annotation["bbox"] = [int(x) for x in annotation["bbox"]]
+                    # convert bbox from xywh to xyxy
+                    annotation["bbox"] = [
+                        annotation["bbox"][0],
+                        annotation["bbox"][1],
+                        annotation["bbox"][0] + annotation["bbox"][2],
+                        annotation["bbox"][1] + annotation["bbox"][3],
+                    ]
+                    image_annotations[image_id].append(annotation)
+            print(
+                f"Loaded {len(image_annotations[image_id])} annotations for image {image_id}  : {image['file_path']} "
+            )
+
+        # convert images from list to dict
+        images = {image["id"]: image for image in images}
+
+        return image_annotations, images, categories
 
     def get_content(
         self,
@@ -580,6 +663,11 @@ class TableContentProvider(ContentProvider):
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
+
+        # two methods to render tables - either render a table from the dataset or render a random table
+        if np.random.choice([0, 1], p=[0.5, 0.5]):
+            img, mask = self.render_table(img, mask, canvas, canvas_mask, component)
+            return img, mask
 
         bbox = component["bbox"]
         w = bbox[2] - bbox[0]
@@ -667,6 +755,108 @@ class TableContentProvider(ContentProvider):
         # background.save("/tmp/samples/table.png")
         background = background.resize((w, h))
         img.paste(background, (0, 0))
+
+    def render_table(self, img, mask, canvas, canvas_mask, component: dict):
+        print(f"Rendering table for {component}")
+        bbox = component["bbox"]
+        cw = bbox[2] - bbox[0]
+        ch = bbox[3] - bbox[1]
+
+        annotations, images, categories = self.annotations["full"]
+        print(categories)
+        annotated_image = np.random.choice(len(annotations))
+        annotated_image = 7
+        annotation = annotations[annotated_image]
+        # load the image from the first annotation
+        p = images[annotation[0]["image_id"]]["file_path"]
+
+        print(f"Loading image from : {p}")
+        overlay = Image.open(p)
+        ow, oh = overlay.size
+        overlay = overlay.resize((cw, ch))
+        img.paste(overlay, (0, 0))
+        factor_x = cw / ow
+        factor_y = ch / oh
+
+        # draw rectangle on pil image
+        print(f"Rendering table for {annotation}")
+        print(f"factor_x: {factor_x}")
+        print(f"factor_y: {factor_y}")
+
+        def create_image_and_mask_from_image(
+            pil_img: Image,
+        ) -> Any:  # Tuple[Image, Image, ImageDraw, ImageDraw]:
+            w, h = pil_img.size
+            # create new Pil image to draw on
+            pil_img_mask = Image.new("RGB", (w, h), (255, 255, 255))
+            canvas = ImageDraw.Draw(pil_img)
+            canvas_mask = ImageDraw.Draw(pil_img_mask)
+
+            return pil_img, pil_img_mask, canvas, canvas_mask
+
+        # order the annotations by xy position, this helps to render the text in the correct order
+        annotation = sorted(annotation, key=lambda a: a["bbox"][0] + a["bbox"][1])
+
+        # for each annotation render the mask and text
+        for i, a in enumerate(annotation):
+            attributes = a["attributes"]
+            # check if the annotation  attributes contain the text attribute
+            if "TYPE" in attributes:
+                print("type found : ", attributes["TYPE"])
+                if attributes["TYPE"] == "IMAGE":
+                    continue
+                continue
+            # convert the bbox from [x1, y1, x2, y2] to [x1, y1, w, h]
+            bbox = a["bbox"]
+            bbox = [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]]
+            # scale the bbox proportionally to the size of the target image
+            scaled_bbox = [
+                int(bbox[0] * factor_x),
+                int(bbox[1] * factor_y),
+                int(bbox[2] * factor_x),
+                int(bbox[3] * factor_y),
+            ]
+            x, y, cw, ch = scaled_bbox
+
+            # create new temporary images to draw the mask and text on from overlay
+            overlay_clip = overlay.crop((x, y, x + cw, y + ch))
+            c_img, c_mask, c_canvas, c_canvas_mask = create_image_and_mask_from_image(
+                overlay_clip
+            )
+
+            # canvas.rectangle((x, y, x + cw, y + ch), fill="red", outline="red")
+            # canvas_mask.rectangle((x, y, x + cw, y + ch), fill="red", outline="red")
+
+            # clip the image and mask to the bbox of the annotation
+            # draw the clipped image and mask on the temporary images
+            baseline_font_size = 16
+            self.render_text(
+                baseline_font_size,
+                c_img,
+                c_mask,
+                c_canvas,
+                c_canvas_mask,
+                0.8,
+                ch,
+                cw,
+                "dense",
+                False,
+                False,
+                False,
+                attributes,
+            )
+
+            # c_img.save(f"/tmp/samples/clip_{i}.png")
+            # c_mask.save(f"/tmp/samples/clip_{i}_mask.png")
+
+            # paste the temporary images on the target image and mask
+            img.paste(c_img, (x, y))
+            mask.paste(c_mask, (x, y))
+
+        # img.save("/tmp/samples/img.png")
+        # mask.save("/tmp/samples/mask-mask.png")
+
+        return img, mask
 
 
 class FigureContentProvider(ContentProvider):
@@ -882,7 +1072,6 @@ class TitleContentProvider(ContentProvider):
         h = bbox[3] - bbox[1]
 
         # self.overlay_background(img, mask, h, w, component)
-
         # overlay = img.copy()
 
         self.render_text(
@@ -915,7 +1104,8 @@ def get_content_provider(content_type: str, assets_dir: str) -> ContentProvider:
         return TableContentProvider(assets_dir=assets_dir)
 
     if content_type == "figure":
-        return FigureContentProvider(assets_dir=assets_dir)
+        return TableContentProvider(assets_dir=assets_dir)
+        # return FigureContentProvider(assets_dir=assets_dir)
 
     if content_type == "title":
         return TitleContentProvider(assets_dir=assets_dir)

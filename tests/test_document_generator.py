@@ -10,7 +10,7 @@ def test_document_generator():
     layout_provider = get_layout_provider("fixed", 10, 100)
     generator = DocumentGenerator(
         layout_provider=layout_provider,
-        target_size=1024 * 1,
+        target_size=2048,
         solidity=0.5,
         expected_components=["figure", "table"],
     )
