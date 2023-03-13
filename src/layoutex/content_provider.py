@@ -84,7 +84,7 @@ def draw_text_with_mask(
             or style_attributes["style"] == "WHITE_BLACK_OUTLINE"
         ):
             fill = "white"
-            stroke_width = np.random.randint(1, 4)
+            stroke_width = np.random.randint(1, 2)
         elif style_attributes["style"] == "BLACK":
             fill = "black"
         else:
@@ -149,7 +149,7 @@ def draw_text_with_mask(
 
     if style_attributes is None:
         if not inverted and np.random.choice([0, 1], p=[0.9, 0.1]):
-            stroke_width = np.random.randint(1, 4)
+            stroke_width = np.random.randint(1, 3)
             stroke_fill = "black"
             fill = "white"
             mask_fill = "red"
@@ -513,9 +513,6 @@ class ContentProvider(object):
                     np.random.randint(0, len(self.patches_full))
                 ]
 
-        # x_offset = np.random.randint(w / 16, w / 16)
-        # y_offset = np.random.randint(h / 16, h / 16)
-
         background = background.resize((w, h))
         img.paste(background, (0, 0))
 
@@ -664,10 +661,15 @@ class TableContentProvider(ContentProvider):
             component, bbox_mode
         )
 
-        # two methods to render tables - either render a table from the dataset or render a random table
-        if np.random.choice([0, 1], p=[0.5, 0.5]):
-            img, mask = self.render_table(img, mask, canvas, canvas_mask, component)
-            return img, mask
+        sizing_x = component["sizing"][0]
+        sizing_y = component["sizing"][1]
+        print(f"Sizing [table]: {sizing_x}x{sizing_y}")
+
+        if sizing_x == "FULL_WIDTH" and sizing_y in ["HALF_HEIGHT", "FULL_HEIGHT"]:
+            # two methods to render tables - either render a table from the dataset or render a random table
+            if np.random.choice([0, 1], p=[0.5, 0.5]):
+                img, mask = self.render_table(img, mask, canvas, canvas_mask, component)
+                return img, mask
 
         bbox = component["bbox"]
         w = bbox[2] - bbox[0]
@@ -763,9 +765,8 @@ class TableContentProvider(ContentProvider):
         ch = bbox[3] - bbox[1]
 
         annotations, images, categories = self.annotations["full"]
-        print(categories)
         annotated_image = np.random.choice(len(annotations))
-        annotated_image = 7
+        # annotated_image = 7
         annotation = annotations[annotated_image]
         # load the image from the first annotation
         p = images[annotation[0]["image_id"]]["file_path"]
@@ -829,7 +830,7 @@ class TableContentProvider(ContentProvider):
 
             # clip the image and mask to the bbox of the annotation
             # draw the clipped image and mask on the temporary images
-            baseline_font_size = 16
+            baseline_font_size = 20
             self.render_text(
                 baseline_font_size,
                 c_img,
@@ -897,6 +898,12 @@ class FigureContentProvider(ContentProvider):
         return img, mask
 
     def overlay_background(self, img, mask, canvas, canvas_mask, h, w, component: dict):
+        # "FULL_WIDTH", "LINE_HEIGHT"
+        sizing_x = component["sizing"][0]
+        sizing_y = component["sizing"][1]
+
+        print(f"Sizing: {sizing_x}x{sizing_y}")
+
         def generator_barcode():
             from barcode.writer import ImageWriter
             from barcode import generate
@@ -963,27 +970,25 @@ class FigureContentProvider(ContentProvider):
             img.paste(qrcode_img, qrcode_pos)
             mask.paste(qrcode_img, qrcode_pos)
 
-        def generator_logo():
+        def generator_logo(component):
+            bbox = component["bbox"]
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+
             logos = get_images_from_dir(os.path.join(self.assets_dir, "logos"))
             logo = random.choice(logos)
             logo_w, logo_h = logo.size[0], logo.size[1]
             logo_pos = (0, 0)
-            font_size = 16 + np.random.randint(20, 35)
             possible_alignments = ["left", "right", "under"]
-
-            # resize image to half of the height of the image and half of the width of the image
-            if h > logo_h:
-                # resize the logo to 25% of the image
-                # logo = logo.resize((int(w * 0.33), int(logo_W * w * 0.33 / logo_w)))
-                logo = logo.resize((int(logo_w * h * 0.5 / logo_h), int(h * 0.5)))
-                logo_w, logo_h = logo.size
-            else:
-                # resize to the height of the image
-                logo = logo.resize((int(logo_w * h * 0.8 / logo_h), int(h * 0.8)))
-                logo_w, logo_h = logo.size
-                logo_pos = (0, h // 2 - logo_h // 2)
-                font_size = logo_h - logo_h // 4
-                possible_alignments = ["left", "right"]
+            # scale the logo to 25% of the image
+            random_scale = random.uniform(0.20, 0.50)
+            logo = logo.resize((int(w * random_scale), int(h * random_scale)))
+            # resize to the height of the image
+            # resize to the width of the image
+            # logo = logo.resize((int(logo_w * h * 0.8 / logo_h), int(h * 0.8)))
+            logo_w, logo_h = logo.size
+            logo_pos = (0, h // 2 - logo_h // 2)
+            font_size = random.randint(min(20, logo_h // 4), logo_h // 2)
 
             font, font_baseline, font_h, font_w, line_height = self.measure_fonts(
                 baseline_font_size=font_size, density=0.8
@@ -1034,19 +1039,15 @@ class FigureContentProvider(ContentProvider):
 
         generator = random.choice([generator_barcode, generator_qrcode, generator_logo])
 
-        # "FULL_WIDTH", "LINE_HEIGHT"
-        sizing_x = component["sizing"][0]
-        sizing_y = component["sizing"][1]
-
         if sizing_y == "QUARTER_HEIGHT":
             generator = random.choice(
                 [generator_barcode, generator_qrcode, generator_logo]
             )
-            generator()
+            generator(component)
         elif sizing_y == "HALF_HEIGHT":
-            generator_logo()
+            generator_logo(component)
         else:
-            generator()
+            generator(component)
 
 
 class TitleContentProvider(ContentProvider):
@@ -1097,15 +1098,14 @@ class TitleContentProvider(ContentProvider):
 
 def get_content_provider(content_type: str, assets_dir: str) -> ContentProvider:
     """Get a content provider"""
-    if content_type == "paragraph":
+    if content_type in ["paragraph", "list"]:
         return TextContentProvider(assets_dir=assets_dir)
 
-    if content_type in ["table", "list"]:
+    if content_type in ["table"]:
         return TableContentProvider(assets_dir=assets_dir)
 
     if content_type == "figure":
-        return TableContentProvider(assets_dir=assets_dir)
-        # return FigureContentProvider(assets_dir=assets_dir)
+        return FigureContentProvider(assets_dir=assets_dir)
 
     if content_type == "title":
         return TitleContentProvider(assets_dir=assets_dir)

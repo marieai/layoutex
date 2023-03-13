@@ -19,3 +19,6 @@ def test_document_generator():
     for i in range(10):
         document = generator.render(i)
         print(document)
+        img, mask, layout = document.image, document.mask, document.layout
+        img.save(f"/tmp/samples/rendered_{i}.png")
+        mask.save(f"/tmp/samples/rendered_{i}_mask.png")

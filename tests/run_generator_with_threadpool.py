@@ -57,8 +57,8 @@ def main():
     )
 
     # get cpu count
-    num_samples = 200
-    train_percentage = 1.0
+    num_samples = 100
+    train_percentage = 1
     train_num = int(num_samples * train_percentage)  # training percent
 
     print(f"train_percentage = {train_percentage}")
@@ -99,22 +99,6 @@ def main():
                 # futures = executor.map(generator.render, batch)
                 for future in cf.as_completed(futures):
                     completed(future)
-
-            if False:
-                for future in cf.as_completed(render_futures):
-                    document = future.result()
-                    if document is None:
-                        continue
-                    if not document.is_valid():
-                        continue
-
-                    write_images(
-                        output_root_dir=output_root_dir,
-                        image=document.image,
-                        mask=document.mask,
-                        index=index,
-                        train_num=train_num,
-                    )
 
 
 if __name__ == "__main__":

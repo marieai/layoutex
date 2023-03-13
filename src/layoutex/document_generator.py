@@ -131,11 +131,10 @@ class DocumentGenerator(object):
                     return Image.fromarray(img)
 
                 generated_doc = binarize(generated_doc)
-                # generated_doc.save(f"/tmp/samples/rendered_{task_id}.png")
-                # generated_mask.save(f"/tmp/samples/rendered_{task_id}_mask.png")
 
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
+                raise e
                 retry_count += 1
                 if retry_count > 3:
                     print(

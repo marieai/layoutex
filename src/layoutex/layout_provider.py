@@ -16,6 +16,7 @@ from layoutex.layout_transformer.utils import gen_colors
 
 from typing import List, Tuple, Any, Optional
 
+
 def get_layout_provider(name: str, max_objects: int, max_length: int):
     if name == "fixed":
         return FixedLayoutProvider(max_objects, max_length)
@@ -49,7 +50,7 @@ class LayoutProvider(ABC):
         document_count: int,
         solidity: float = 0.5,
         expected_components: Optional = None,
-    ) -> List :#list[Content]:
+    ) -> List:  # list[Content]:
         """
         Get the layout of the document to be generated
         Args:
@@ -73,7 +74,7 @@ class GeneratedLayoutProvider(LayoutProvider):
             "/home/greg/dev/marieai/layoutex/src/layoutex/layout_transformer/logs/publaynet/checkpoints/publaynet.pth",
             self.device,
         )
-        train_json = "~/datasets/publaynet/annotations/val.json"
+        train_json = "~/datasets/publaynet/annotations/train.json"
         self.dataset = JSONLayout(os.path.expanduser(train_json))
 
     @property
@@ -85,7 +86,7 @@ class GeneratedLayoutProvider(LayoutProvider):
         """
         return "generated"
 
-    def get_layouts(self, document_count: int) -> List :#list[Content]:
+    def get_layouts(self, document_count: int) -> List:  # list[Content]:
         model = self.model
         dataset = self.dataset
         loader = DataLoader(
@@ -223,16 +224,11 @@ class FixedLayoutProvider(LayoutProvider):
         document_count: int,
         solidity: float = 0.5,
         expected_components: Optional = None,
-    ) -> List : # list[list[dict]]:
+    ) -> List:  # list[list[dict]]:
         if expected_components is None:
             expected_components = ["table"]
 
         dataset = self.dataset
-        # loader = self.loader
-
-        # loader = DataLoader(
-        #     dataset, shuffle=True, pin_memory=True, batch_size=1, num_workers=1
-        # )
 
         colors = gen_colors(6)  # category_colors
         samples_dir = "/tmp/samples"
@@ -240,22 +236,19 @@ class FixedLayoutProvider(LayoutProvider):
         idx = 0
         # pbar = tqdm(enumerate(loader), total=len(loader))
         total = len(self.dataset)
-        #
-        # loader = DataLoader(
-        #     dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
-        # )
-        #
-        # pbar = tqdm(enumerate(loader), total=len(loader))
-        # for it, (x, y) in pbar:
-        #     fixed_x = x[: min(4, len(x))]
-        #     layouts = fixed_x.detach().cpu().numpy()
-        #     layout = layouts[0]
-        #     # print(f"fixed_x: {layout}")
-        #     break
+
+        # get a random sample from the dataset
+        import random
 
         # for i in range(document_count):
         while len(documents) < document_count:
-            (x, y) = self.dataset[np.random.randint(0, total - 1)]
+            # item = int(random.random() * total)
+            idx = np.random.randint(0, total - 1)
+            # idx = 9
+            # print(f"item: {item}")
+            (x, y) = self.dataset[idx]
+            # (x, y) = self.dataset[item]
+            # (x, y) = self.dataset[np.random.randint(0, total - 1)]
             fixed_x = x
             fixed_y = y
             layout = fixed_x.detach().cpu().numpy()
@@ -322,6 +315,11 @@ class FixedLayoutProvider(LayoutProvider):
                     has_figure = True
                 else:
                     raise ValueError(f"Unknown category {cat}")
+
+                if content_type == ContentType.TABLE:
+                    if component_sizing[0] == "HALF_WIDTH":
+                        content_type = ContentType.FIGURE
+                        has_table = False
 
                 # due to how the dataset is generated, we change FIGURE to TABLE if the component is too large
                 if content_type == ContentType.FIGURE:
