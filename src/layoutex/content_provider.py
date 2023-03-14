@@ -604,9 +604,9 @@ class TableContentProvider(ContentProvider):
         )
 
         categories = {c["id"]: c["name"] for c in categories}
-        print("Loaded {} images".format(len(images)))
-        print("Loaded {} annotations".format(len(annotations)))
-        print("Loaded {} categories".format(len(categories)))
+        # print("Loaded {} images".format(len(images)))
+        # print("Loaded {} annotations".format(len(annotations)))
+        # print("Loaded {} categories".format(len(categories)))
 
         image_annotations = {}
         for image in images:
@@ -720,7 +720,7 @@ class TableContentProvider(ContentProvider):
 
         def load_one_of(table_patches, group: str, w: int):
             patch_path = os.path.join(table_dir, random.choice(table_patches[group]))
-            img = Image.open(patch_path)
+            img = Image.open(patch_path).convert("RGBA")
             # resize the patch to the width of the image keeping the aspect ratio
             return img.resize((w, int(img.height * w / img.width)))
 
@@ -764,16 +764,23 @@ class TableContentProvider(ContentProvider):
         cw = bbox[2] - bbox[0]
         ch = bbox[3] - bbox[1]
 
+        if ch == 0 or cw == 0:
+            print(f"Skipping {component} due to bad size {cw}x{ch}  > {bbox}")
+            return img, mask
+
         annotations, images, categories = self.annotations["full"]
-        annotated_image = np.random.choice(len(annotations))
+        annotated_image = 1 + np.random.choice(len(annotations))
         # annotated_image = 7
         annotation = annotations[annotated_image]
         # load the image from the first annotation
         p = images[annotation[0]["image_id"]]["file_path"]
 
         print(f"Loading image from : {p}")
-        overlay = Image.open(p)
+        overlay = Image.open(p).convert("RGBA")
         ow, oh = overlay.size
+
+        print(f"Resizing image to {cw}x{ch}  -> {p}")
+
         overlay = overlay.resize((cw, ch))
         img.paste(overlay, (0, 0))
         factor_x = cw / ow
@@ -904,7 +911,11 @@ class FigureContentProvider(ContentProvider):
 
         print(f"Sizing: {sizing_x}x{sizing_y}")
 
-        def generator_barcode():
+        def generator_barcode(component: dict):
+            bbox = component["bbox"]
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+
             from barcode.writer import ImageWriter
             from barcode import generate
             import io
@@ -914,14 +925,17 @@ class FigureContentProvider(ContentProvider):
             barcode = Image.open(fp)
             barcode_w, barcode_h = barcode.size
 
-            if h > barcode_h:
-                s = 0.8
-                r = w / barcode.width
-                barcode = barcode.resize((int(w * s), int(barcode.height * r * s)))
-            else:
-                # resize to the height of the image
-                barcode = barcode.resize((int(barcode_w * h / barcode_h), h))
+            if False:
+                if h > barcode_h:
+                    s = 0.8
+                    r = w / barcode.width
+                    barcode = barcode.resize((int(w * s), int(barcode.height * r * s)))
+                else:
+                    # resize to the height of the image
+                    barcode = barcode.resize((int(barcode_w * h / barcode_h), h))
 
+            # resize to the height of the image
+            barcode = barcode.resize((int(barcode_w * h / barcode_h), h))
             # rotating a image 90 deg counter clockwise
             # barcode = barcode.rotate(90, PIL.Image.NEAREST, expand=1)
 
@@ -934,7 +948,11 @@ class FigureContentProvider(ContentProvider):
             img.paste(barcode, barcode_pos)
             mask.paste(barcode, barcode_pos)
 
-        def generator_qrcode():
+        def generator_qrcode(component: dict):
+            bbox = component["bbox"]
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+
             import qrcode
 
             qr = qrcode.QRCode(
@@ -951,16 +969,20 @@ class FigureContentProvider(ContentProvider):
             # qrcode_img.save("/tmp/samples/qrcode.png")
             barcode_w, barcode_h = qrcode_img.size
 
-            if h > barcode_h:
-                s = 0.8
-                r = w / qrcode_img.width
-                qrcode_img = qrcode_img.resize(
-                    (int(w * s), int(qrcode_img.height * r * s))
-                )
-            else:
-                # resize to the height of the image
-                qrcode_img = qrcode_img.resize((int(barcode_w * h / barcode_h), h))
+            if False:
+                if h > barcode_h:
+                    s = 0.8
+                    r = w / qrcode_img.width
+                    qrcode_img = qrcode_img.resize(
+                        (int(w * s), int(qrcode_img.height * r * s))
+                    )
+                else:
+                    # resize to the height of the image
+                    qrcode_img = qrcode_img.resize((int(barcode_w * h / barcode_h), h))
 
+            qrcode_img = qrcode_img.resize(
+                (int(barcode_w * h * 0.5 / barcode_h), int(h * 0.5))
+            )
             img_w, img_h = qrcode_img.size
             qrcode_pos = (
                 w // 2 - img_w // 2,
@@ -970,7 +992,7 @@ class FigureContentProvider(ContentProvider):
             img.paste(qrcode_img, qrcode_pos)
             mask.paste(qrcode_img, qrcode_pos)
 
-        def generator_logo(component):
+        def generator_logo(component: dict):
             bbox = component["bbox"]
             w = bbox[2] - bbox[0]
             h = bbox[3] - bbox[1]

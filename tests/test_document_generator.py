@@ -16,7 +16,7 @@ def test_document_generator():
     )
     assert generator
 
-    for i in range(10):
+    for i in range(100):
         document = generator.render(i)
         print(document)
         img, mask, layout = document.image, document.mask, document.layout
