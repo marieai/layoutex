@@ -5,6 +5,7 @@ import json
 import os
 import random
 import string
+import threading
 
 # from functools import cache
 
@@ -21,7 +22,7 @@ def get_images_from_dir(asset_dir) -> List:  # -> List[Image]:
     for filename in os.listdir(asset_dir):
         try:
             img_path = os.path.join(asset_dir, filename)
-            src_img = Image.open(img_path)
+            src_img = Image.open(img_path).convert("RGBA")
 
             assets.append(src_img)
         except Exception as e:
@@ -640,13 +641,12 @@ class TableContentProvider(ContentProvider):
                         annotation["bbox"][1] + annotation["bbox"][3],
                     ]
                     image_annotations[image_id].append(annotation)
-            print(
-                f"Loaded {len(image_annotations[image_id])} annotations for image {image_id}  : {image['file_path']} "
-            )
+            # print(
+            #     f"Loaded {len(image_annotations[image_id])} annotations for image {image_id}  : {image['file_path']} "
+            # )
 
         # convert images from list to dict
         images = {image["id"]: image for image in images}
-
         return image_annotations, images, categories
 
     def get_content(

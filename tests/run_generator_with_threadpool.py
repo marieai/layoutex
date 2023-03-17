@@ -57,7 +57,7 @@ def main():
     )
 
     # get cpu count
-    num_samples = 100
+    num_samples = 50
     train_percentage = 1
     train_num = int(num_samples * train_percentage)  # training percent
 
@@ -88,7 +88,7 @@ def main():
         for ndx in range(0, s, n):
             yield iterable[ndx : min(ndx + n, s)]
 
-    batch_size = mp.cpu_count() * 4
+    batch_size = mp.cpu_count() // 2
     with Timer(text="\nTotal elapsed time: {:.3f}"):
         # it is important to batchify the task to avoid memory issues
         with cf.ProcessPoolExecutor(max_workers=batch_size) as executor:

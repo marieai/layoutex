@@ -1,9 +1,16 @@
 import asyncio
 import os
+import threading
+from threading import Thread
+
 import numpy as np
 from typing_extensions import AsyncIterable
 
-from layoutex.content_provider import ContentProvider, get_content_provider
+from layoutex.content_provider import (
+    ContentProvider,
+    get_content_provider,
+    get_images_from_dir,
+)
 from layoutex.document import Document
 from layoutex.layout_provider import LayoutProvider
 
@@ -50,6 +57,14 @@ class DocumentGenerator(object):
 
     def render(self, task_id: int) -> Document:
         retry_count = 0
+        overlays = get_images_from_dir(
+            os.path.join(self.assets_dir, "patches", "overlay")
+        )
+
+        overlays = [
+            overlay.resize((self.target_size, self.target_size)) for overlay in overlays
+        ]
+        rng = np.random.default_rng(threading.get_native_id())
 
         while True:
             try:
@@ -75,7 +90,28 @@ class DocumentGenerator(object):
                 height = self.target_size
                 # create empty PIL image
                 colors = gen_colors(6)
-                generated_doc = Image.new("RGB", (width, height), color=(255, 255, 255))
+                generated_doc = Image.new(
+                    "RGBA", (width, height), color=(255, 255, 255)
+                )
+
+                # get random overlay if needed
+                if rng.integers(0, 2) == 1:
+                    # idx = np.random.randint(0, len(overlays))
+                    idx = rng.integers(0, len(overlays))
+                    print(f"Using overlay {idx} of {len(overlays)}")
+                    overlay = overlays[idx]
+
+                    # check if rotation is needed
+                    if rng.integers(0, 2) == 1:
+                        # get random rotation angle from set of angles
+                        # angle = np.random.choice([0, 90, 180, 270])
+                        angle = rng.choice([0, 90, 180, 270])
+                        print(f"Using rotation angle {angle}")
+                        overlay = overlay.rotate(angle, expand=True)
+
+                        # blend overlay with document
+                    generated_doc = Image.blend(generated_doc, overlay, 0.5)
+
                 generated_mask = Image.new(
                     "RGB", (width, height), color=(255, 255, 255)
                 )

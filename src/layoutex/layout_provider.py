@@ -1,4 +1,5 @@
 import os
+import threading
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -238,12 +239,14 @@ class FixedLayoutProvider(LayoutProvider):
         total = len(self.dataset)
 
         # get a random sample from the dataset
-        import random
+        rng = np.random.default_rng(threading.get_native_id())
 
         # for i in range(document_count):
         while len(documents) < document_count:
             # item = int(random.random() * total)
-            idx = np.random.randint(0, total - 1)
+            # idx = np.random.randint(0, total - 1)
+            idx = rng.integers(0, total - 1)
+
             # idx = 9
             # print(f"item: {item}")
             (x, y) = self.dataset[idx]
