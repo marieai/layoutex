@@ -170,7 +170,6 @@ class DocumentGenerator(object):
 
                 return Document(task_id, generated_doc, generated_mask, layout)
             except Exception as e:
-                raise e
                 retry_count += 1
                 if retry_count > 3:
                     print(
