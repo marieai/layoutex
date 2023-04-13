@@ -467,6 +467,8 @@ class ContentProvider(object):
                     label_text_clean,
                     f"-{label_text}",
                     f"-{label_text_clean}",
+                    f"{label_text}-",
+                    f"{label_text_clean}-",
                     f"({label_text})",
                 ]
             )
