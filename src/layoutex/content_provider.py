@@ -459,8 +459,18 @@ class ContentProvider(object):
 
         def g_amount():
             label_text = self.faker.pricetag()
-            if np.random.choice([0, 1], p=[0.5, 0.5]):
-                label_text = label_text.replace("$", "")
+            label_text_clean = label_text.replace("$", "")
+
+            label_text = random.choice(
+                [
+                    label_text,
+                    label_text_clean,
+                    f"-{label_text}",
+                    f"-{label_text_clean}",
+                    f"({label_text})",
+                ]
+            )
+
             return label_text
 
         if tabular:
