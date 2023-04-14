@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 """
 class representing a content provider
 """
@@ -411,7 +413,9 @@ class ContentProvider(object):
             estimated_words = int(
                 (document_width - current_x) / font_width * 5
             )  # 5 chars per word
-            return self.faker.sentence(nb_words=estimated_words)
+            text = self.faker.sentence(nb_words=estimated_words)
+
+            return text
 
         def g_date():
             # https://datatest.readthedocs.io/en/stable/how-to/date-time-str.html
@@ -442,7 +446,17 @@ class ContentProvider(object):
             return label_text
 
         def g_names():
-            return self.fake_names_only.name()
+            text = self.fake_names_only.name()
+            # append a special character at the end of the text to make it more realistic
+            if np.random.random() > 0.0:
+                # get number of random spaces
+                n_spaces = np.random.randint(0, 3)
+                text = (
+                    text
+                    + ("" * n_spaces)
+                    + random.choice([".", ",", ":", ";", "!", "?", "#"])
+                )
+            return text
 
         def g_accounts():
             N = random.choice([1, 4, 6, 8, 10, 12])
@@ -467,8 +481,20 @@ class ContentProvider(object):
                     label_text_clean,
                     f"-{label_text}",
                     f"-{label_text_clean}",
+                    f"- {label_text}",
+                    f"- {label_text_clean}",
+                    f"–{label_text}",
+                    f"–{label_text_clean}",
+                    f"– {label_text}",
+                    f"– {label_text_clean}",
                     f"{label_text}-",
                     f"{label_text_clean}-",
+                    f"{label_text}–",
+                    f"{label_text_clean}–",
+                    f"{label_text} -",
+                    f"{label_text_clean} -",
+                    f"{label_text} –",
+                    f"{label_text_clean} –",
                     f"({label_text})",
                 ]
             )
@@ -487,6 +513,7 @@ class ContentProvider(object):
         text = generator()
         if np.random.random() > 0.5:
             text = text.upper()
+
         return text
 
     def overlay_background(
