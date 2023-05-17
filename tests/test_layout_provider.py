@@ -1,10 +1,11 @@
 import pytest
 
-from layoutex.layout_provider import LayoutProvider, get_layout_provider
+from layoutex.layout_provider import LayoutProvider
+from layoutex.layout_provider_factory import LayoutProviderFactory
 
 
 def test_fixed_layout_provider():
-    layout = get_layout_provider("fixed", 10, 100)
+    layout = LayoutProviderFactory.get_basic("fixed", 10, 100)
     assert isinstance(layout, LayoutProvider)
     doc_count = 1
     documents = layout.get_layouts(
@@ -18,4 +19,4 @@ def test_fixed_layout_provider():
 
 def test_unknown_layout_provider():
     with pytest.raises(ValueError):
-        get_layout_provider("unknown", 10, 100)
+        LayoutProviderFactory.get_basic("unknown", 10, 100)

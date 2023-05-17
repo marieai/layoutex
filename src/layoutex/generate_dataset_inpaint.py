@@ -1,38 +1,36 @@
-import sys, os, glob, time, pdb, cv2
+# import sys, os, glob, time, pdb, cv2
+import os
 import numpy as np
-from tqdm import tqdm
+# from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
 import shutil
 import random
 import string
 import PIL
-from resize_image import resize_image
 import config as cfg
-from PIL import ImageFont, ImageDraw, Image, ImageOps
-
+from PIL import ImageFont, ImageDraw, Image # , ImageOps
 import multiprocessing as mp
 from concurrent.futures.thread import ThreadPoolExecutor
-
 from faker import Faker
+import qrcode
+# import imgaug as ia # unused
+import imgaug.augmenters as iaa
+# import EAN13 from barcode module
+from barcode.writer import ImageWriter
+from barcode import generate
+import io
+import traceback
 
 fake = Faker()
-
-
-def q(text=''):
-    print(f'>{text}<')
-    sys.exit()
-
 
 data_dir = cfg.data_dir
 train_dir = cfg.train_dir
 val_dir = cfg.val_dir
-
 imgs_dir = cfg.imgs_dir
 noisy_dir = cfg.noisy_dir
 debug_dir = cfg.debug_dir
 patch_dir = cfg.patch_dir
-
 asset_dir = cfg.asset_dir
 
 train_data_dir = os.path.join(data_dir, train_dir)
@@ -58,21 +56,19 @@ img_val_dir = os.path.join(data_dir, val_dir, imgs_dir)
 noisy_val_dir = os.path.join(data_dir, val_dir, noisy_dir)
 debug_val_dir = os.path.join(data_dir, val_dir, debug_dir)
 
-dir_list = [
-    img_train_dir,
-    noisy_train_dir,
-    debug_train_dir,
-    img_val_dir,
-    noisy_val_dir,
-    debug_val_dir,
-]
-for dir_path in dir_list:
+for dir_path in [img_train_dir, noisy_train_dir, debug_train_dir, img_val_dir, noisy_val_dir, debug_val_dir]:
     print(f'dir_path = {dir_path}')
     if not os.path.exists(dir_path):
         os.mkdir(dir_path)
 
 
+def get_font_dir():
+    """gets the truetype-simple fonts from the asset_dir"""
+    return os.path.join(asset_dir, 'fonts/truetype-simple')
+
+
 def get_word_list():
+    """gets individual list of words from txt_file_dir"""
     f = open(cfg.txt_file_dir, encoding='utf-8', mode="r")
     text = f.read()
     f.close()
@@ -83,10 +79,13 @@ def get_word_list():
     lines_word_list = [str.split(line) for line in lines_list]
     words_list = [words for sublist in lines_word_list for words in sublist]
 
+    # words_list = ["hello" for words in words_list]
+
     return words_list
 
 
 def __scale_width(img, long_side):
+    """resizes img to a width of long_side using bicubic interpolation (4x4 pixel neighborhoods)"""
     size = img.shape[:2]
     oh, ow = size
     ratio = oh / ow
@@ -96,7 +95,7 @@ def __scale_width(img, long_side):
     return cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 
 
-def resize_image(image, desired_size, color=(255, 255, 255)):
+def resize_image(image, desired_size, color=(255, 255, 255)): # unused
     '''Helper function to resize an image while keeping the aspect ratio.
     Parameter
     ---------
@@ -136,7 +135,7 @@ def resize_image(image, desired_size, color=(255, 255, 255)):
     return image
 
 
-def get_size(load_size, size):
+def get_size(load_size, size): # unused
     w, h = size
     new_w = w
 
@@ -146,7 +145,7 @@ def get_size(load_size, size):
     return new_w, new_h
 
 
-def __frame_image(img, size):
+def __frame_image(img, size): # unused
     h = img.shape[0]
     w = img.shape[1]
 
@@ -204,13 +203,7 @@ def read_image(image):
 
 
 def augment_image(img):
-    import random
-    import string
-
-    """Augment imag and mask"""
-    import imgaug as ia
-    import imgaug.augmenters as iaa
-
+    """Augment image and mask"""
     sometimes = lambda aug: iaa.Sometimes(0.5, aug)
 
     seq_shared = iaa.Sequential(
@@ -270,7 +263,7 @@ def get_patches():
     resolutions = [128 * 16]
 
     # rescale image to height of 1000
-    def __rescale_height(img, new_height=1000):
+    def __rescale_height(img, new_height=1000): # unused
         size = img.shape[:2]
         oh, ow = size
         ratio = oh / ow
@@ -287,23 +280,23 @@ def get_patches():
             if len(src_img.shape) == 2:
                 src_img = cv2.cvtColor(src_img, cv2.COLOR_GRAY2BGR)
 
-            for k in range(len(resolutions) * 1):
+            for k in range(len(resolutions)):
                 index = random.randint(0, len(resolutions) - 1)
                 res = int(resolutions[index])
                 # Scale to our resolution then frame
                 img = __scale_width(src_img, res)
                 # img = __rescale_height(src_img, res)
 
-                print(f'img shape : {img.shape}')
-
                 if True:
-                    h = max(img.shape[0], 3328)
-                    w = max(img.shape[1], 2560)
+                    h = max(img.shape[0], 3328) # unused?
+                    w = max(img.shape[1], 2560) # unused?
 
-                    h = 2660
-                    w = 2048
+                    # h = 2660
+                    # w = 2048
                     img = cv2.resize(img, (h, w), interpolation=cv2.INTER_CUBIC)
                     # img = __frame_image(img, (h, w)) # HxW
+
+                print(f'img shape : {img.shape}')
 
                 patches.append(img)
         except Exception as e:
@@ -334,7 +327,7 @@ words_list = get_word_list()
 patches_list = get_patches()
 
 logo_list = get_images_from_dir(os.path.join(asset_dir, 'logos'))
-image_blocks = get_images_from_dir(os.path.join(asset_dir, 'blocks'))
+image_blocks = get_images_from_dir(os.path.join(asset_dir, 'blocks')) # unused?
 
 print('\nnumber of words in the txt file: ', len(words_list))
 print('number of patches: ', len(patches_list))
@@ -373,25 +366,20 @@ def get_text():
     return print_text
 
 
-def get_phone():
-    "Generate phone like string"
+def get_random_fontpath():
+    # fontFace = np.random.choice([ "FreeMono.ttf", "FreeMonoBold.ttf", "oldfax.ttf", "FreeMonoBold.ttf", "FreeSans.ttf", "Old_Rubber_Stamp.ttf"])
+    # fontFace = np.random.choice(["FreeMono.ttf", "FreeMonoBold.ttf", "FreeMonoBold.ttf", "FreeSans.ttf"])
+    # fontFace = np.random.choice(["FreeMono.ttf", "FreeMonoBold.ttf", "FreeSans.ttf", "ColourMePurple.ttf", "Pelkistettyatodellisuutta.ttf", "SpotlightTypewriterNC.ttf"])
+    font_dir = get_font_dir()
+    fonts = os.listdir(font_dir)
+    fontFace = np.random.choice(fonts)
+    return os.path.join(font_dir, fontFace)
 
-    letters = string.digits
-    sep = np.random.choice([True, False], p=[0.5, 0.5])
-    c = 10
-    if sep:
-        c = 3
-        d = 3
-        z = 4
 
-    n = ''.join(random.choice(letters) for i in range(c))
-    if sep:
-        n += '-'
-        n += ''.join(random.choice(letters) for i in range(d))
-        n += '-'
-        n += ''.join(random.choice(letters) for i in range(z))
+def get_random_font(size):
+    fontPath = get_random_fontpath()
 
-    return n
+    return ImageFont.truetype(fontPath, size)
 
 
 def drawTrueTypeTextOnImage(pil_img, canvas, canvas_mask, text, xy, size, font=None):
@@ -404,26 +392,7 @@ def drawTrueTypeTextOnImage(pil_img, canvas, canvas_mask, text, xy, size, font=N
         raise Exception('Image is not PIL')
 
     if font is None:
-        # fontFace = np.random.choice([ "FreeMono.ttf", "FreeMonoBold.ttf", "oldfax.ttf", "FreeMonoBold.ttf", "FreeSans.ttf", "Old_Rubber_Stamp.ttf"])
-        fontFace = np.random.choice(
-            ["FreeMono.ttf", "FreeMonoBold.ttf", "FreeMonoBold.ttf", "FreeSans.ttf"]
-        )
-        fontFace = np.random.choice(
-            [
-                "FreeMono.ttf",
-                "FreeMonoBold.ttf",
-                "FreeSans.ttf",
-                "ColourMePurple.ttf",
-                "Pelkistettyatodellisuutta.ttf",
-                "SpotlightTypewriterNC.ttf",
-            ]
-        )
-
-        fonts = os.listdir('./assets/fonts/truetype-simple')
-        fontFace = np.random.choice(fonts)
-        fontPath = os.path.join("./assets/fonts/truetype-simple", fontFace)
-
-        font = ImageFont.truetype(fontPath, size)
+        font = get_random_font(size)
 
     (left, top, right, bottom) = canvas.textbbox((0, 0), text, font)
     size_width = right - left
@@ -510,9 +479,7 @@ def print_lines_aligned(pil_img, boxes):
 
         return getUpperOrLowerText(txt)
 
-    fonts = os.listdir('./assets/fonts/truetype-simple')
-    fontFace = np.random.choice(fonts)
-    fontPath = os.path.join("./assets/fonts/truetype-simple", fontFace)
+    fontPath = get_random_fontpath()
 
     # Pass the image to PIL
     # pil_im = Image.fromarray(cv2Image)
@@ -570,12 +537,6 @@ def print_lines_aligned(pil_img, boxes):
 
         # draw barcode component
         if np.random.choice([True, False], p=[0.5, 0.5]):
-            # import EAN13 from barcode module
-            from barcode.writer import ImageWriter
-            from barcode import generate
-
-            import io
-
             fp = io.BytesIO()
 
             generate('code128', fake.company(), writer=ImageWriter(), output=fp)
@@ -593,8 +554,6 @@ def print_lines_aligned(pil_img, boxes):
             pil_img_mask.paste(pil_barcode, barcode_pos)
 
         else:
-            import qrcode
-
             qr = qrcode.QRCode(
                 version=1,
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -671,40 +630,11 @@ def write_pil_images(generated, noisy_img, index):
     img_type = ''
     print(f'Writing {index}, {train_num}')
 
-    if index <= train_num:
-        noisy_img.save(
-            os.path.join(
-                data_dir,
-                train_dir,
-                imgs_dir,
-                'blk_{}.png'.format(str(index).zfill(8), img_type),
-            )
-        )
-        generated.save(
-            os.path.join(
-                data_dir,
-                train_dir,
-                noisy_dir,
-                'blk_{}.png'.format(str(index).zfill(8), img_type),
-            )
-        )
-    else:
-        noisy_img.save(
-            os.path.join(
-                data_dir,
-                val_dir,
-                imgs_dir,
-                'blk_{}.png'.format(str(index).zfill(8), img_type),
-            )
-        )
-        generated.save(
-            os.path.join(
-                data_dir,
-                val_dir,
-                noisy_dir,
-                'blk_{}.png'.format(str(index).zfill(8), img_type),
-            )
-        )
+    output_dir = train_dir if index <= train_num else val_dir
+    file_name = 'blk_{}.png'.format(str(index).zfill(8), img_type)
+
+    noisy_img.save(os.path.join(data_dir, output_dir, imgs_dir, file_name))
+    generated.save(os.path.join(data_dir, output_dir, noisy_dir, file_name))
 
 
 print('\nsynthesizing image data...')
@@ -723,30 +653,28 @@ def __process(index):
 
         boxes = []
 
-        fonts = os.listdir('./assets/fonts/truetype-simple')
-        fontFace = np.random.choice(fonts)
-        fontPath = os.path.join("./assets/fonts/truetype-simple", fontFace)
+        fontPath = get_random_fontpath()
 
         pil_img = Image.new('RGB', (w, h), (255, 255, 255))
 
-        trueTypeFontSize = np.random.randint(30, 120)
-        font = ImageFont.truetype(fontPath, trueTypeFontSize)
+        trueTypeFontSize = np.random.randint(30, 120) # unused?
+        font = ImageFont.truetype(fontPath, trueTypeFontSize)  # unused?
 
         pil_mask = print_lines_aligned(pil_img, boxes)
         pil_patch = Image.fromarray(patch)
 
+        # convert to greyscale
         pil_img = pil_img.convert('L')
         pil_patch = pil_patch.convert('L')
 
         img = np.array(pil_img)
-        mask = np.array(pil_mask)
+        mask = np.array(pil_mask) # unused?
         patch = np.array(pil_patch)
 
+        # randomly binarize
         if np.random.choice([True, False], p=[0.5, 0.5]):
             img = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-            patch = cv2.threshold(patch, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[
-                1
-            ]
+            patch = cv2.threshold(patch, 127, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
 
         merged = cv2.bitwise_and(patch, img, mask=None)
         merged = Image.fromarray(merged)
@@ -760,8 +688,6 @@ def __process(index):
         write_pil_images(merged, pil_mask, index)
     except Exception as e:
         # print full statcktrace
-        import traceback
-
         traceback.print_exc()
         print(e)
 
@@ -774,12 +700,7 @@ def main():
 
     print('All tasks has been finished')
 
-
-def check_mask_images():
-    import numpy as np
-
-    import cv2
-
+def check_mask_images(): # unused
     kernel = np.ones((2, 2), np.uint8)
 
     # load image

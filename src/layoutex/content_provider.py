@@ -8,6 +8,7 @@ import os
 import random
 import string
 import threading
+import logging
 
 # from functools import cache
 
@@ -16,6 +17,8 @@ from PIL import ImageFont, ImageDraw, Image, ImageStat
 from faker import Faker
 
 from typing import List, Tuple, Any
+
+logger = logging.getLogger(__name__)
 
 
 def get_images_from_dir(asset_dir) -> List:  # -> List[Image]:
@@ -72,7 +75,7 @@ def draw_text_with_mask(
     adj_y = y + word_height
     adj_w = x + word_width
 
-    # print(f'size : {img_h},  {adj_y},  {word_width}, {word_height} : {xy}')
+    logger.debug(f'size : {img_h},  {adj_y},  {word_width}, {word_height} : {xy}')
     if adj_y > img_h or adj_w > img_w:
         return False, (0, 0)
 
@@ -182,7 +185,7 @@ def draw_text_with_mask(
             bitmap_image = Image.fromarray(bitmap_image)
 
         # bitmap_image.save(f'/tmp/samples/mask-{text}-after.png')
-        # print(f'offset : {offset} : {xy},  adjust : {offset[0]}, {offset[1]}')
+        logger.debug(f'offset : {offset} : {xy},  adjust : {offset[0]}, {offset[1]}')
 
         adjust = (offset[0], offset[1])
         xy = (xy[0] + adjust[0], xy[1] + adjust[1])
@@ -191,7 +194,7 @@ def draw_text_with_mask(
         return True, (word_width, word_height)
 
     except Exception as e:
-        print(f"Error : {e}")
+        logger.error(f"Error : {e}")
         return False, (0, 0)
 
 
@@ -268,9 +271,9 @@ class ContentProvider(object):
         font_size_est = baseline_font_size + np.random.randint(0, 30)
         font_baseline = np.random.randint(0, 12)
         font = ImageFont.truetype(font_path, font_size_est)
-        font_wh = font.getsize("A")
-        font_w = font_wh[0]
-        font_h = font_wh[1]
+        font_wh = font.getbbox("A")
+        font_w = font_wh[2] - font_wh[0]
+        font_h = font_wh[3] - font_wh[1]
 
         line_height = font_h + (font_baseline * density)
         return font, font_baseline, font_h, font_w, line_height
@@ -291,9 +294,7 @@ class ContentProvider(object):
         inverted=False,
         style_attributes=None,
     ):
-        # print(
-        #     f"Rendering text with font size: {baseline_font_size} and density: {density}"
-        # )
+        logger.debug(f"Rendering text with font size: {baseline_font_size} and density: {density}")
         header = False
         if fit_font_to_bbox:
             baseline_font_size = int(height * 0.8)
@@ -304,7 +305,7 @@ class ContentProvider(object):
         )
         # estimate number of lines that can fit in the image based on the font size and height of the image
         num_lines = int(height / line_height)
-        # print(f"Number of lines: {num_lines}")
+        logger.debug(f"Number of lines: {num_lines}")
 
         estimated_colum_size = int(width / np.random.randint(5, 10))
         estimated_start_x = 0  # np.random.randint(0, estimated_colum_size)
@@ -356,11 +357,11 @@ class ContentProvider(object):
                 min_word_width = font_w * 4
 
                 if space_left < min_word_width and tries > 5:
-                    # print(f"Space left: {space_left} < {min_word_width}")
+                    logger.debug(f"Space left: {space_left} < {min_word_width}")
                     break
 
                 if start_x + txt_spacing > width:
-                    # print(f"Start x + txt spacing > width : {tries}")
+                    logger.debug(f"Start x + txt spacing > width : {tries}")
                     tries += 1
                     continue
 
@@ -404,9 +405,7 @@ class ContentProvider(object):
     ) -> str:
         """Generate text"""
         #
-        # print(
-        #     f"current_x: {current_x}, document_width: {document_width}, font_width: {font_width}"
-        # )
+        logger.debug(f"current_x: {current_x}, document_width: {document_width}, font_width: {font_width}")
 
         # Faker.seed(0)
         def g_text():
@@ -541,17 +540,19 @@ class ContentProvider(object):
             sizing_y = component["sizing"][1]
 
             if sizing_y == "QUARTER_HEIGHT":
-                background = self.patches_half[
+                background = self.patches_quarter[
                     np.random.randint(0, len(self.patches_quarter))
                 ]
             elif sizing_y == "HALF_HEIGHT":
                 background = self.patches_half[
                     np.random.randint(0, len(self.patches_half))
                 ]
-            else:
+            elif sizing_y == "FULL_HEIGHT":
                 background = self.patches_full[
                     np.random.randint(0, len(self.patches_full))
                 ]
+            else:
+                background = Image.new("RGB", (w, h), (255, 255, 255))
 
         background = background.resize((w, h))
         img.paste(background, (0, 0))
@@ -571,6 +572,7 @@ class TextContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
+        logger.debug(f"TextContentProvider.get_content(component={component})")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
@@ -644,9 +646,9 @@ class TableContentProvider(ContentProvider):
         )
 
         categories = {c["id"]: c["name"] for c in categories}
-        # print("Loaded {} images".format(len(images)))
-        # print("Loaded {} annotations".format(len(annotations)))
-        # print("Loaded {} categories".format(len(categories)))
+        logger.debug("Loaded {} images".format(len(images)))
+        logger.debug("Loaded {} annotations".format(len(annotations)))
+        logger.debug("Loaded {} categories".format(len(categories)))
 
         image_annotations = {}
         for image in images:
@@ -687,6 +689,7 @@ class TableContentProvider(ContentProvider):
         # convert images from list to dict
         images = {image["id"]: image for image in images}
         return image_annotations, images, categories
+    
 
     def get_content(
         self,
@@ -696,13 +699,14 @@ class TableContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
+        logger.debug(f"TableContentProvider.get_content(component={component})")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
 
         sizing_x = component["sizing"][0]
         sizing_y = component["sizing"][1]
-        print(f"Sizing [table]: {sizing_x}x{sizing_y}")
+        logger.debug(f"Sizing [table]: {sizing_x}x{sizing_y}")
 
         if sizing_x == "FULL_WIDTH" and sizing_y in ["HALF_HEIGHT", "FULL_HEIGHT"]:
             # two methods to render tables - either render a table from the dataset or render a random table
@@ -798,13 +802,13 @@ class TableContentProvider(ContentProvider):
         img.paste(background, (0, 0))
 
     def render_table(self, img, mask, canvas, canvas_mask, component: dict):
-        print(f"Rendering table for {component}")
+        logger.debug(f"Rendering table for {component}")
         bbox = component["bbox"]
         cw = bbox[2] - bbox[0]
         ch = bbox[3] - bbox[1]
 
         if ch == 0 or cw == 0:
-            print(f"Skipping {component} due to bad size {cw}x{ch}  > {bbox}")
+            logger.warning(f"Skipping {component} due to bad size {cw}x{ch}  > {bbox}")
             return img, mask
 
         annotations, images, categories = self.annotations["full"]
@@ -814,11 +818,11 @@ class TableContentProvider(ContentProvider):
         # load the image from the first annotation
         p = images[annotation[0]["image_id"]]["file_path"]
 
-        print(f"Loading image from : {p}")
+        logger.debug(f"Loading image from : {p}")
         overlay = Image.open(p).convert("RGBA")
         ow, oh = overlay.size
 
-        print(f"Resizing image to {cw}x{ch}  -> {p}")
+        logger.debug(f"Resizing image to {cw}x{ch}  -> {p}")
 
         overlay = overlay.resize((cw, ch))
         img.paste(overlay, (0, 0))
@@ -826,9 +830,9 @@ class TableContentProvider(ContentProvider):
         factor_y = ch / oh
 
         # draw rectangle on pil image
-        print(f"Rendering table for {annotation}")
-        print(f"factor_x: {factor_x}")
-        print(f"factor_y: {factor_y}")
+        logger.debug(f"Rendering table for {annotation}")
+        logger.debug(f"factor_x: {factor_x}")
+        logger.debug(f"factor_y: {factor_y}")
 
         def create_image_and_mask_from_image(
             pil_img: Image,
@@ -849,7 +853,7 @@ class TableContentProvider(ContentProvider):
             attributes = a["attributes"]
             # check if the annotation  attributes contain the text attribute
             if "TYPE" in attributes:
-                print("type found : ", attributes["TYPE"])
+                logger.debug(f"type found : {attributes['TYPE']}")
                 if attributes["TYPE"] == "IMAGE":
                     continue
                 continue
@@ -920,7 +924,7 @@ class FigureContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
-        print(f"Getting table content for {component}")
+        logger.debug(f"FigureContentProvider.get_content(component={component})")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
@@ -948,9 +952,10 @@ class FigureContentProvider(ContentProvider):
         sizing_x = component["sizing"][0]
         sizing_y = component["sizing"][1]
 
-        print(f"Sizing: {sizing_x}x{sizing_y}")
+        logger.debug(f"Sizing: {sizing_x}x{sizing_y}")
 
         def generator_barcode(component: dict):
+            logger.info("generating barcode...")
             bbox = component["bbox"]
             w = bbox[2] - bbox[0]
             h = bbox[3] - bbox[1]
@@ -988,6 +993,7 @@ class FigureContentProvider(ContentProvider):
             mask.paste(barcode, barcode_pos)
 
         def generator_qrcode(component: dict):
+            logger.info("generating qrcode...")
             bbox = component["bbox"]
             w = bbox[2] - bbox[0]
             h = bbox[3] - bbox[1]
@@ -1032,6 +1038,7 @@ class FigureContentProvider(ContentProvider):
             mask.paste(qrcode_img, qrcode_pos)
 
         def generator_logo(component: dict):
+            logger.info("generating logo...")
             bbox = component["bbox"]
             w = bbox[2] - bbox[0]
             h = bbox[3] - bbox[1]
@@ -1058,6 +1065,7 @@ class FigureContentProvider(ContentProvider):
             text = self.faker.company()
 
             while attempt < 10:
+                logger.info(f"Attempt #{attempt} to create a valid logo")
                 attempt += 1
                 if np.random.random() > 0.5:
                     text = text.upper()
@@ -1067,8 +1075,8 @@ class FigureContentProvider(ContentProvider):
                 word_width = right - left
                 word_height = bottom - top
 
-                # print(f"Logo size: {logo_w}x{logo_h}")
-                # print(f"Text size: {word_width}x{word_height}")
+                logger.debug(f"Logo size: {logo_w}x{logo_h}")
+                logger.debug(f"Text size: {word_width}x{word_height}")
 
                 if logo_w + word_width > w:
                     # text is too long, trim it
@@ -1100,7 +1108,7 @@ class FigureContentProvider(ContentProvider):
 
         generator = random.choice([generator_barcode, generator_qrcode, generator_logo])
 
-        if sizing_y == "QUARTER_HEIGHT":
+        if sizing_y == "QUARTER_HEIGHT" or sizing_x == "QUARTER_WIDTH":
             generator = random.choice(
                 [generator_barcode, generator_qrcode, generator_logo]
             )
@@ -1125,6 +1133,7 @@ class TitleContentProvider(ContentProvider):
         density: float = 0.8,
     ) -> Tuple:  # tuple[Image, Image]:
         """Get content"""
+        logger.debug(f"TitleContentProvider.get_content(component={component})")
         img, mask, canvas, canvas_mask = self.create_image_and_mask(
             component, bbox_mode
         )
@@ -1155,20 +1164,3 @@ class TitleContentProvider(ContentProvider):
 
         # return img, overlay
         return img, mask
-
-
-def get_content_provider(content_type: str, assets_dir: str) -> ContentProvider:
-    """Get a content provider"""
-    if content_type in ["paragraph", "list"]:
-        return TextContentProvider(assets_dir=assets_dir)
-
-    if content_type in ["table"]:
-        return TableContentProvider(assets_dir=assets_dir)
-
-    if content_type == "figure":
-        return FigureContentProvider(assets_dir=assets_dir)
-
-    if content_type == "title":
-        return TitleContentProvider(assets_dir=assets_dir)
-
-    raise ValueError(f"Unknown content type {content_type}")

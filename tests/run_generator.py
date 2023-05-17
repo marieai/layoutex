@@ -1,12 +1,12 @@
 from layoutex.document_generator import DocumentGenerator
-from layoutex.layout_provider import LayoutProvider, get_layout_provider
+from layoutex.layout_provider_factory import LayoutProviderFactory
 
 import asyncio
 from codetiming import Timer
 
 
 async def main():
-    layout_provider = get_layout_provider("fixed", 10, 100)
+    layout_provider = LayoutProviderFactory.get_basic("fixed", 10, 100)
     generator = DocumentGenerator(
         layout_provider=layout_provider,
         target_size=1024 * 1,

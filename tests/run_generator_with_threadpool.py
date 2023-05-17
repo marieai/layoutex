@@ -5,7 +5,7 @@ import numpy as np
 
 from layoutex.document import Document
 from layoutex.document_generator import DocumentGenerator
-from layoutex.layout_provider import LayoutProvider, get_layout_provider
+from layoutex.layout_provider_factory import LayoutProviderFactory
 
 import asyncio
 from codetiming import Timer
@@ -48,7 +48,7 @@ def main():
     layout_sizes = [1700, 2048, 2550]
     layout_size = 2048
 
-    layout_provider = get_layout_provider("fixed", 10, 100)
+    layout_provider = LayoutProviderFactory.get_basic("fixed", 10, 100)
     generator = DocumentGenerator(
         layout_provider=layout_provider,
         target_size=layout_size,

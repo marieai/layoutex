@@ -164,28 +164,43 @@ class JSONLayout(Dataset):
         return len(self.data)
 
     def render(self, layout):
+        # create an all white RGB 256x256 pixel image 
         img = Image.new('RGB', (256, 256), color=(255, 255, 255))
         draw = ImageDraw.Draw(img, 'RGBA')
+        # reshape layout as 1D array
         layout = layout.reshape(-1)
+        # trim the beginning and end of the array, 
         layout = trim_tokens(layout, self.bos_token, self.eos_token, self.pad_token)
+        # removing any starting or ending tokens until a multiple of 5 tokens remains.
+        # reshape back into a 2D array with 5 columns.
         layout = layout[: len(layout) // 5 * 5].reshape(-1, 5)
+
+        # extract box coords from layout, 
+        # selecting all rows and columns starting from the second column.
         box = layout[:, 1:].astype(np.float32)
+
+        # scale x and y coords to 255
         box[:, [0, 1]] = box[:, [0, 1]] / (self.size - 1) * 255
+
+        # scale w and h to 256
         box[:, [2, 3]] = box[:, [2, 3]] / self.size * 256
+
+        # w and h are added to the x and y to get the final bbox coords.
         box[:, [2, 3]] = box[:, [0, 1]] + box[:, [2, 3]]
 
+        # draw rectangles on 256x256 image
         for i in range(len(layout)):
             x1, y1, x2, y2 = box[i]
             cat = layout[i][0]
-            col = (
+            color = (
                 self.colors[cat - self.size]
                 if 0 <= cat - self.size < len(self.colors)
                 else [0, 0, 0]
             )
             draw.rectangle(
                 [x1, y1, x2, y2],
-                outline=tuple(col) + (200,),
-                fill=tuple(col) + (64,),
+                outline=tuple(color) + (200,),
+                fill=tuple(color) + (64,),
                 width=2,
             )
 
@@ -194,14 +209,29 @@ class JSONLayout(Dataset):
         return img
 
     def normalize_layout(self, layout, target_size):
+        # reshape as 1D array
         layout = layout.reshape(-1)
+        # trim the beginning and end of the array, 
         layout = trim_tokens(layout, self.bos_token, self.eos_token, self.pad_token)
+        # removing any starting or ending tokens until a multiple of 5 tokens remains.
+        # reshape back into a 2D array with 5 columns.
         layout = layout[: len(layout) // 5 * 5].reshape(-1, 5)
+
+        # extract box coords from layout, 
+        # selecting all rows and columns starting from the second column.
         box = layout[:, 1:].astype(np.float32)
+
+        # normalize to fit within target_size
+        # x and y (cols 0 and 1) are divded by self.size - 1 to bring them to the range [0, 1]
+        # Then they are multiplied by target_size to scale them to the target size.
         box[:, [0, 1]] = box[:, [0, 1]] / (self.size - 1) * target_size
+        # w and h (cols 2 and 3) are divded by self.size and multiplied by target_size to bring them
+        # to the range of the normalized x and y coords.
         box[:, [2, 3]] = box[:, [2, 3]] / self.size * target_size
+        # normalized w and h are added to the normalized x and y to get the final bbox coords.
         box[:, [2, 3]] = box[:, [0, 1]] + box[:, [2, 3]]
 
+        # build and return normalized layout data
         normalized = []
         for i in range(len(layout)):
             x1, y1, x2, y2 = box[i]

@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 from abc import ABC, abstractmethod
@@ -14,17 +15,42 @@ from layoutex.content import Content, ContentType
 from layoutex.layout_transformer.dataset import JSONLayout
 from layoutex.layout_transformer.model import GPTConfig, GPT
 from layoutex.layout_transformer.utils import gen_colors
+from layoutex.component_util import estimate_component_sizing
 
 from typing import List, Tuple, Any, Optional
 
+logger = logging.getLogger(__name__)
 
-def get_layout_provider(name: str, max_objects: int, max_length: int):
-    if name == "fixed":
-        return FixedLayoutProvider(max_objects, max_length)
-    elif name == "generated":
-        return GeneratedLayoutProvider(max_objects, max_length)
-    else:
-        raise ValueError(f"Unknown layout provider: {name}")
+
+class LayoutProviderConfig:
+    """
+    Layout provider configuration object.
+    """
+
+    def __init__(self, type: str, max_objects: int, max_length: int, *args, **settings):
+        # get the name of the layout provider
+        self.type = type
+
+        # get the max objects?
+        self.max_objects = max_objects
+
+        # get the max length?
+        self.max_length = max_length
+        # get the checkpoint
+        default_checkpoint_path = (
+            "./src/layoutex/layout_transformer/logs/publaynet/checkpoints/publaynet.pth"
+        )
+        self.checkpoint_path = settings.get("checkpoint_path", default_checkpoint_path)
+
+        # get the dataset
+        default_dataset_path = "./assets/datasets/publaynet/annotations/val.json"
+        self.dataset_path = settings.get(
+            "dataset_path", os.path.expanduser(default_dataset_path)
+        )
+
+        # get the samples directory
+        default_samples_dir = "/tmp/samples"
+        self.samples_dir = settings.get("samples_dir", default_samples_dir)
 
 
 class LayoutProvider(ABC):
@@ -32,9 +58,10 @@ class LayoutProvider(ABC):
     Layout provider base class
     """
 
-    def __init__(self, max_objects: int, max_length: int):
-        self.max_length = max_length
-        self.max_objects = max_objects
+    def __init__(self, layout_provider_config):
+        self.max_length = layout_provider_config.max_length
+        self.max_objects = layout_provider_config.max_objects
+        self.config = layout_provider_config
 
     @property
     @abstractmethod
@@ -50,7 +77,7 @@ class LayoutProvider(ABC):
         target_size: int,
         document_count: int,
         solidity: float = 0.5,
-        expected_components: Optional = None,
+        expected_components: Optional[list] = None,
     ) -> List:  # list[Content]:
         """
         Get the layout of the document to be generated
@@ -66,17 +93,13 @@ class LayoutProvider(ABC):
 
 
 class GeneratedLayoutProvider(LayoutProvider):
-    def __init__(self, max_objects: int, max_length: int):
-        super().__init__(max_objects, max_length)
+    def __init__(self, layout_provider_config):
+        super().__init__(layout_provider_config)
 
         # load model and use it for inference
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.load(
-            "/home/greg/dev/marieai/layoutex/src/layoutex/layout_transformer/logs/publaynet/checkpoints/publaynet.pth",
-            self.device,
-        )
-        train_json = "~/datasets/publaynet/annotations/train.json"
-        self.dataset = JSONLayout(os.path.expanduser(train_json))
+        self.model = self.load(self.config.checkpoint_path, self.device)
+        self.dataset = JSONLayout(os.path.expanduser(self.config.dataset_path))
 
     @property
     def name(self) -> str:
@@ -94,7 +117,6 @@ class GeneratedLayoutProvider(LayoutProvider):
             dataset, shuffle=True, pin_memory=False, batch_size=1, num_workers=1
         )
 
-        samples_dir = "/tmp/samples"
         gen_name = 0
         pbar = tqdm(enumerate(loader), total=len(loader))
         for it, (x, y) in pbar:
@@ -109,7 +131,9 @@ class GeneratedLayoutProvider(LayoutProvider):
                 for i, layout in enumerate(layouts):
                     layout = dataset.render(layout)
                     layout.save(
-                        os.path.join(samples_dir, f"{gen_name:02d}_{i:02d}_input.png")
+                        os.path.join(
+                            self.config.samples_dir, f"{gen_name:02d}_{i:02d}_input.png"
+                        )
                     )
 
             # reconstruction
@@ -126,7 +150,9 @@ class GeneratedLayoutProvider(LayoutProvider):
                 for i, layout in enumerate(layouts):
                     layout = dataset.render(layout)
                     layout.save(
-                        os.path.join(samples_dir, f"{gen_name:02d}_{i:02d}_recon.png")
+                        os.path.join(
+                            self.config.samples_dir, f"{gen_name:02d}_{i:02d}_recon.png"
+                        )
                     )
 
             # for i, layout in enumerate(layouts):
@@ -150,65 +176,17 @@ class GeneratedLayoutProvider(LayoutProvider):
         model = GPT(mconf).to(device)
         # load checkpoint from pth file
         model.load_state_dict(torch.load(model_path))
-        print("Loaded model from {}".format(model_path))
+        logger.info("Loaded model from {}".format(model_path))
         return model
 
 
-def normalize_bbox_1000(bbox, size):
-    return [
-        int(1000 * bbox[0] / size[0]),
-        int(1000 * bbox[1] / size[1]),
-        int(1000 * bbox[2] / size[0]),
-        int(1000 * bbox[3] / size[1]),
-    ]
-
-
-#
-
-
-def estimate_component_sizing(box, target_size, margin_size):
-    """
-    estimate the component sizing based on the bounding box size and the target size of the document including margins
-    """
-    x1, y1, x2, y2 = box
-    target_size = target_size - 2 * margin_size
-    w = int(x2 - x1)
-    h = y2 - y1
-    ratio_w = w / target_size
-    ratio_h = h / target_size
-
-    component_w = "FULL_WIDTH"
-    component_h = "FULL_HEIGHT"
-
-    if ratio_w > 0.75:
-        component_w = "FULL_WIDTH"
-    elif ratio_w > 0.5:
-        component_w = "TWO_THIRDS_WIDTH"
-    elif ratio_w > 0.25:
-        component_w = "HALF_WIDTH"
-    elif ratio_w > 0.01:
-        component_w = "QUARTER_WIDTH"
-
-    if ratio_h > 0.75:
-        component_h = "FULL_HEIGHT"
-    elif ratio_h > 0.25:
-        component_h = "HALF_HEIGHT"
-    elif ratio_h > 0.05:
-        component_h = "QUARTER_HEIGHT"
-    elif ratio_h > 0.01:
-        component_h = "LINE_HEIGHT"
-
-    # print(f"ratio_w: {ratio_w}, ratio_h: {ratio_h}  -> {component_w}, {component_h}")
-    return component_w, component_h
-
-
 class FixedLayoutProvider(LayoutProvider):
-    def __init__(self, max_objects: int, max_length: int):
-        super().__init__(max_objects, max_length)
-        train_json = "~/datasets/publaynet/annotations/val.json"
-        self.dataset = JSONLayout(os.path.expanduser(train_json))
+    def __init__(self, layout_provider_config):
+        super().__init__(layout_provider_config)
+
+        self.dataset = JSONLayout(os.path.expanduser(self.config.dataset_path))
         total = len(self.dataset)
-        print(f"total samples : {total}")
+        logger.info(f"total samples : {total}")
 
     @property
     def name(self) -> str:
@@ -224,19 +202,23 @@ class FixedLayoutProvider(LayoutProvider):
         target_size: int,
         document_count: int,
         solidity: float = 0.5,
-        expected_components: Optional = None,
+        expected_components: Optional[list] = None,
     ) -> List:  # list[list[dict]]:
+        logger.debug(f"get_layouts(target_size={target_size}, document_count={document_count}, solidity={solidity}, expected_components={expected_components})")
+        
         if expected_components is None:
+            logger.warning("No expected components...defaulting to ['table']")
             expected_components = ["table"]
 
         dataset = self.dataset
 
         colors = gen_colors(6)  # category_colors
-        samples_dir = "/tmp/samples"
         documents = []
         idx = 0
         # pbar = tqdm(enumerate(loader), total=len(loader))
-        total = len(self.dataset)
+        total = len(dataset)
+
+        build_layout_image_for_debugging = False
 
         # get a random sample from the dataset
         rng = np.random.default_rng(threading.get_native_id())
@@ -247,9 +229,12 @@ class FixedLayoutProvider(LayoutProvider):
             # idx = np.random.randint(0, total - 1)
             idx = rng.integers(0, total - 1)
 
+            logger.debug(f"random dataset index = {idx}")
             # idx = 9
-            # print(f"item: {item}")
+            logger.debug(f"item: {idx}")
             (x, y) = self.dataset[idx]
+
+
             # (x, y) = self.dataset[item]
             # (x, y) = self.dataset[np.random.randint(0, total - 1)]
             fixed_x = x
@@ -264,26 +249,31 @@ class FixedLayoutProvider(LayoutProvider):
                 layout, target_size=target_size
             )
 
-            if False:
+            if build_layout_image_for_debugging:
                 img = Image.new(
                     "RGB", (target_size, target_size), color=(255, 255, 255)
                 )
                 draw = ImageDraw.Draw(img, "RGBA")
 
-            has_table = False
-            has_figure = False
-            has_list = False
+            forced_figure = False
+            added_components = set()
 
             target_area = target_size * target_size
+            logger.debug(f"computed target_area = {target_area}")
             layout_area = 0
-            for normalized in normalized_layout:
-                # print(normalized)
+
+            for i, normalized in enumerate(normalized_layout):
+                logger.debug(normalized)
                 cat = normalized[0]
                 box = normalized[1:]
                 col = colors[cat]
                 x1, y1, x2, y2 = box
 
-                if False:
+                logger.debug(f"computed category    = {['PARAGRAPH', 'TITLE', 'LIST', 'TABLE', 'FIGURE'][cat]}")
+                logger.debug(f"computed color       = {col}")
+                logger.debug(f"bbox dimensions      = (x1={x1}, y1={y1}, x2={x2}, y2={y2})")
+
+                if build_layout_image_for_debugging:
                     draw.rectangle(
                         [x1, y1, x2, y2],
                         outline=tuple(col) + (200,),
@@ -294,6 +284,8 @@ class FixedLayoutProvider(LayoutProvider):
                 # get area of the box
                 area = (x2 - x1) * (y2 - y1)
                 layout_area += area
+                logger.debug(f"computed area        = {area}")
+                logger.debug(f"computed layout area = {layout_area}")
 
                 # 0  {1: {'supercategory': '', 'id': 1, 'name': 'text'},
                 # 1  2: {'supercategory': '', 'id': 2, 'name': 'title'},
@@ -302,36 +294,48 @@ class FixedLayoutProvider(LayoutProvider):
                 # 4  5: {'supercategory': '', 'id': 5, 'name': 'figure'}}
 
                 component_sizing = estimate_component_sizing(box, target_size, 60)
+                component_w, component_h = component_sizing
+                logger.debug(f"computed component_w = ({component_w})")
+                logger.debug(f"computed component_h = ({component_h})")
                 # convert category to Content Type
                 if cat == 0:
-                    content_type = ContentType.PARAGRAPH
+                    content_type = ContentType.PARAGRAPH # text
                 elif cat == 1:
                     content_type = ContentType.TITLE
                 elif cat == 2:
                     content_type = ContentType.LIST
-                    has_list = True
                 elif cat == 3:
                     content_type = ContentType.TABLE
-                    has_table = True
                 elif cat == 4:
                     content_type = ContentType.FIGURE
-                    has_figure = True
                 else:
                     raise ValueError(f"Unknown category {cat}")
-
+                
+                # Force a figure if able.
+                if (not forced_figure
+                    and (component_w == "HALF_WIDTH" and component_h == "QUARTER_HEIGHT")):
+                    logger.info(f"forcing FIGURE content for component #{i}")
+                    content_type = ContentType.FIGURE
+                    forced_figure = True
+                
                 if content_type == ContentType.TABLE:
-                    if component_sizing[0] == "HALF_WIDTH":
+                    if component_w == "HALF_WIDTH" and component_h == "QUARTER_HEIGHT":
+                        logger.info("Changing content type from TABLE to FIGURE...")
                         content_type = ContentType.FIGURE
-                        has_table = False
+                        # Does this really make sense to remove ContentType.TABLE here?
+                        added_components.remove(ContentType.TABLE)
 
                 # due to how the dataset is generated, we change FIGURE to TABLE if the component is too large
                 if content_type == ContentType.FIGURE:
-                    if component_sizing[0] == "FULL_WIDTH" and component_sizing[1] in [
+                    if component_w == "FULL_WIDTH" and component_h in [
                         "FULL_HEIGHT",
                         "HALF_HEIGHT",
                     ]:
+                        logger.info("Changing content type from FIGURE to TABLE...")
                         content_type = ContentType.TABLE
-                        has_table = True
+
+                logger.debug(f"comp. content_type   = {content_type}")
+                added_components.add(content_type)
 
                 info = {
                     "content_type": str(content_type.name).lower(),
@@ -340,7 +344,7 @@ class FixedLayoutProvider(LayoutProvider):
                     "sizing": component_sizing,
                 }
 
-                if False:
+                if build_layout_image_for_debugging:
                     draw.text(
                         (x1, y1),
                         f"{content_type} {component_sizing}",
@@ -351,19 +355,25 @@ class FixedLayoutProvider(LayoutProvider):
                 generated_layouts.append(info)
 
             if expected_components is not None:
-                if "table" in expected_components and not has_table:
+                if "figure" in expected_components and ContentType.FIGURE not in added_components:
+                    logger.warning("figure required but not found...skipping")
                     continue
-                if "figure" in expected_components and not has_figure:
+                if "table" in expected_components and ContentType.TABLE not in added_components:
+                    logger.warning("table required but not found...skipping")
                     continue
-                if "list" in expected_components and not has_list:
+                if "list" in expected_components and ContentType.LIST not in added_components:
+                    logger.warning("list required but not found...skipping")
                     continue
 
             solid_area = layout_area / target_area
+            logger.debug(f"computed solid_area  = {solid_area}")
             if solid_area <= solidity:
+                logger.warning("solid_area is below the solidity threshold...skipping")
                 continue
 
-            # rendered.save(os.path.join(samples_dir, f"{idx:02d}_{0:02d}_input.png"))
-            # img.save(os.path.join(samples_dir, f"{idx:02d}_{0:02d}_rescaled.png"))
+            # rendered.save(os.path.join(self.config.samples_dir, f"{idx:02d}_{0:02d}_input.png"))
+            if build_layout_image_for_debugging:
+                img.save(os.path.join(self.config.samples_dir, f"{idx:02d}_{0:02d}_rescaled.png"))
 
             idx += 1
             documents.append(generated_layouts)
