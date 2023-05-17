@@ -1,6 +1,6 @@
 import pytest
 
-from layoutex.content_provider import get_content_provider
+from layoutex.content_provider_factory import ContentProviderFactory
 
 
 def test_text_content_provider():
@@ -10,7 +10,7 @@ def test_text_content_provider():
         "sizing": ["FULL_WIDTH", "FULL_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(
@@ -31,7 +31,7 @@ def test_text_content_inverted_provider():
         "sizing": ["FULL_WIDTH", "LINE_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(
@@ -51,7 +51,7 @@ def test_table_content_provider():
         "sizing": ["FULL_WIDTH", "FULL_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(
@@ -71,7 +71,7 @@ def test_figure_content_provider():
         "sizing": ["FULL_WIDTH", "FULL_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(
@@ -91,7 +91,7 @@ def test_title_content_provider():
         "sizing": ["FULL_WIDTH", "FULL_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(
@@ -111,7 +111,7 @@ def test_table_content_provider_masked_001():
         "sizing": ["FULL_WIDTH", "FULL_HEIGHT"],
     }
 
-    provider = get_content_provider(component["content_type"], assets_dir="./assets")
+    provider = ContentProviderFactory.get(component["content_type"], assets_dir="./assets")
     assert provider
 
     image, mask = provider.get_content(

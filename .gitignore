@@ -1,3 +1,5 @@
+layoutex_env/*
+src/layoutex/generated-OUTLINE/*
 # Temporary and binary files
 *~
 *.py[cod]
@@ -63,3 +65,4 @@ venv/
 *.idea
 *.pydevproject
 
+layoutex_env/bin/activate
