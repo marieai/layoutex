@@ -730,8 +730,8 @@ class TableContentProvider(ContentProvider):
             True,
         )
 
-        # img.save("/tmp/samples/canvas.png")
-        # mask.save("/tmp/samples/canvas-mask.png")
+        img.save("/tmp/samples/canvas.png")
+        mask.save("/tmp/samples/canvas-mask.png")
 
         # return img, overlay
         return img, mask

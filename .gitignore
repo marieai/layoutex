@@ -62,4 +62,4 @@ venv/
 *.ipr
 *.idea
 *.pydevproject
-
+/venv
